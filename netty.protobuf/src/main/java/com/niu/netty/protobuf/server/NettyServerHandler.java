@@ -43,7 +43,7 @@ public class NettyServerHandler extends ChannelInboundHandlerAdapter {
 
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
-        System.out.println("第" + count +  "，服务端接收的消息：" + msg);
+        System.out.println("第" + count++ +  "，服务端接收的消息：" + msg);
         try {
             if (msg instanceof UserMsg.User) {
                 UserMsg.User user = (UserMsg.User) msg;
@@ -56,7 +56,7 @@ public class NettyServerHandler extends ChannelInboundHandlerAdapter {
                     return;
                 }
             } else {
-                System.out.println("位置命令");
+                System.out.println("未知命令");
                 return;
             }
         } catch (Exception e) {
