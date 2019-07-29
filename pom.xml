@@ -12,7 +12,11 @@
         <module>netty.helloworld</module>
         <module>netty.http</module>
         <module>netty.protobuf</module>
+        <module>netty.rpc</module>
     </modules>
+    <properties>
+        <commons-lang.version>3.4</commons-lang.version>
+    </properties>
     <dependencies>
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -41,7 +45,11 @@
             <artifactId>fastjson</artifactId>
             <version>1.2.58</version>
         </dependency>
-
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-lang3</artifactId>
+            <version>${commons-lang.version}</version>
+        </dependency>
     </dependencies>
     <build>
         <plugins>
