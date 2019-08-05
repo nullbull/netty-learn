@@ -1,10 +1,14 @@
 package com.niu.netty.rpc.utils;
 
-import java.security.KeyPair;
-import java.security.KeyPairGenerator;
+import org.apache.commons.codec.binary.Base64;
+
+import java.io.UnsupportedEncodingException;
+import java.security.*;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
-import java.util.Base64;
+import java.security.spec.InvalidKeySpecException;
+import java.security.spec.PKCS8EncodedKeySpec;
+import java.security.spec.X509EncodedKeySpec;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -46,7 +50,44 @@ public class NiuRsaUtil {
         return keyMap;
 
     }
+
+    /**
+     *
+     * @param data 已加密数据
+     * @param privateKey 私钥
+     * @return
+     * @throws Exception
+     */
     public static String sign(byte[] data, String privateKey) throws Exception {
-        byte[] keyBytes = Base64.getDecoder().decode(privateKey.getBytes())
+        byte[] keyBytes = Base64.decodeBase64(privateKey.getBytes("UTF-8"));
+        PKCS8EncodedKeySpec pkcs8EncodedKeySpec = new PKCS8EncodedKeySpec(keyBytes);
+        KeyFactory keyFactory = KeyFactory.getInstance(KEY_ALGORITHM);
+        PrivateKey privateK = keyFactory.generatePrivate(pkcs8EncodedKeySpec);
+        Signature signature = Signature.getInstance(SIGNATURE_ALGORITHM);
+        signature.initSign(privateK);
+        signature.update(data);
+        return new String(Base64.encodeBase64(signature.sign()));
     }
+
+    /**
+     * <p>
+     *     校验数字签名
+     * </p>
+     * @param data 已加密数据
+     * @param publicKey 公钥
+     * @param sign 签名
+     * @return
+     * @throws Exception
+     */
+    public static boolean verify(byte[] data, String publicKey, String sign) throws Exception{
+        byte[] keyBytes = Base64.decodeBase64(publicKey.getBytes("UTF-8"));
+        X509EncodedKeySpec keySpec = new X509EncodedKeySpec(keyBytes);
+        KeyFactory keyFactory = KeyFactory.getInstance(KEY_ALGORITHM);
+        PublicKey publicK = keyFactory.generatePublic(keySpec);
+        Signature signature = Signature.getInstance(SIGNATURE_ALGORITHM);
+        signature.initVerify(publicK);
+        signature.update(data);
+        return signature.verify(Base64.decodeBase64(sign.getBytes("UTF-8")));
+    }
+
 }
