@@ -2,6 +2,8 @@ package com.niu.netty.rpc.utils;
 
 import org.apache.commons.codec.binary.Base64;
 
+import javax.crypto.Cipher;
+import java.io.ByteArrayOutputStream;
 import java.io.UnsupportedEncodingException;
 import java.security.*;
 import java.security.interfaces.RSAPrivateKey;
@@ -52,6 +54,10 @@ public class NiuRsaUtil {
     }
 
     /**
+     * <p>
+     *     用私钥对信息生成数字签名
+     * </p>
+     *
      *
      * @param data 已加密数据
      * @param privateKey 私钥
@@ -88,6 +94,69 @@ public class NiuRsaUtil {
         signature.initVerify(publicK);
         signature.update(data);
         return signature.verify(Base64.decodeBase64(sign.getBytes("UTF-8")));
+    }
+
+    /**
+     * <p>
+     *     私钥解密
+     * </p>
+     * @param encryptedData
+     * @param privateKey
+     * @return
+     * @throws Exception
+     */
+
+    public static byte[] decryptByPrivateKey(byte[] encryptedData, String privateKey) throws Exception {
+        byte[] keyBytes = Base64.decodeBase64(privateKey.getBytes("UTF-8"));
+        PKCS8EncodedKeySpec pkcs8EncodedKeySpec = new PKCS8EncodedKeySpec(keyBytes);
+        KeyFactory keyFactory = KeyFactory.getInstance(KEY_ALGORITHM);
+        Key privateK = keyFactory.generatePrivate(pkcs8EncodedKeySpec);
+        Cipher cipher = Cipher.getInstance(keyFactory.getAlgorithm());
+        cipher.init(Cipher.DECRYPT_MODE, privateK);
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        int inputLength = encryptedData.length;
+        int offset = 0;
+        byte[] cache;
+        int i = 0;
+        while (inputLength - offset > 0) {
+            if (inputLength - offset > MAX_DECRYPT_BLOCK) {
+                cache = cipher.doFinal(encryptedData, offset, MAX_DECRYPT_BLOCK);
+            } else {
+                cache = cipher.doFinal(encryptedData, offset, inputLength - offset);
+            }
+            out.write(cache, 0, cache.length);
+            i++;
+            offset = i * MAX_DECRYPT_BLOCK;
+        }
+        byte[] decryptedData = out.toByteArray();
+        out.close();
+        return decryptedData;
+    }
+
+    /**
+     * <p>
+     *     获取私钥
+     * </p>
+     * @param keyMap
+     * @return
+     * @throws Exception
+     */
+    public static String getPrivateKey(Map<String, Object> keyMap) throws Exception {
+        Key key = (Key) keyMap.get(PRIVATE_KEY);
+        return new String (Base64.encodeBase64(key.getEncoded()), "UTF-8");
+    }
+
+    /**
+     * <p>
+     *     获取私钥
+     * </p>
+     * @param keyMap
+     * @return
+     * @throws Exception
+     */
+    public static String getPublicKey(Map<String, Object> keyMap) throws Exception {
+        Key key = (Key) keyMap.get(PUBLIC_KEY);
+        return new String (Base64.encodeBase64(key.getEncoded()), "UTF-8");
     }
 
 }
