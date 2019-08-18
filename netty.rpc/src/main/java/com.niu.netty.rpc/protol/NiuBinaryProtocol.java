@@ -6,7 +6,7 @@
 package com.niu.netty.rpc.protol;
 
 import com.niu.netty.rpc.utils.TraceThreadContext;
-import generic.GenericRequest;
+import com.niu.netty.rpc.generic.GenericRequest;
 import org.apache.thrift.TException;
 import org.apache.thrift.protocol.*;
 import org.apache.thrift.transport.TTransport;
