@@ -1,5 +1,8 @@
 package com.niu.netty.rpc.server.config;
 
+import com.niu.netty.rpc.generic.GenericRequest;
+import com.niu.netty.rpc.generic.GenericService;
+import com.niu.netty.rpc.generic.GenericServiceImpl;
 import com.niu.netty.rpc.server.INiuServer;
 import io.netty.util.internal.SystemPropertyUtil;
 import lombok.Data;
@@ -7,6 +10,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.thrift.TProcessor;
 import org.springframework.context.ApplicationContext;
 
+import java.lang.reflect.InvocationTargetException;
 import java.util.Arrays;
 
 /**
@@ -56,7 +60,18 @@ public class AbstractNiuServerPublisher {
 
 
     public TProcessor getTProcessor() {
-        Class clazz = getSysIfaceInterface(Gener)
+        Class clazz = getSysIfaceInterface(GenericService.class);
+        try {
+            return getProcessorClass(GenericService.class).getDeclaredConstructor(clazz).newInstance(new GenericServiceImpl(serviceImpl));
+        } catch (NoSuchMethodException e) {
+        log.error ( "can't find the GenericTProcessor Constructor with Iface",e );
+    } catch (IllegalAccessException e) {
+            log.error ( "IllegalAccessException the GenericTProcessor with Iface" );
+    } catch (InstantiationException e) {
+            log.error ( "IllegalInstantiationExceptionAccessException the GenericTProcessor with Iface",e );
+    } catch (InvocationTargetException e) {
+            log.error ( "InvocationTargetException the GenericTProcessor with Iface",e );
+    }
     }
 
 
@@ -65,6 +80,25 @@ public class AbstractNiuServerPublisher {
         return Arrays.stream(clazzs).filter(c -> c.isMemberClass() && !c.isInterface() && c.getSimpleName().contentEquals(IFACE))
                 .findFirst()
                 .orElseThrow(() -> new IllegalArgumentException("serviceInterface must contain Sub Interface of Iface"));
+    }
+    private Class<TProcessor> getProcessorClass(Class<?> serviceInterface) {
+        Class<?>[] clazzs = serviceInterface.getClasses();
+        return Arrays.stream(clazzs).filter(c -> c.isMemberClass() && !c.isInterface() && c.getSimpleName().contentEquals(PROCESSOR))
+                .findFirst()
+                .map(c -> (Class<TProcessor>)c)
+                .orElseThrow(() -> new IllegalArgumentException("serviceInterface must contain Sub Interface of Iface"));
+    }
+
+    protected void checkParam() throws IllegalAccessException {
+        if (null == serviceImpl) {
+            throw new IllegalAccessException("this serviceImpl can't be null");
+        }
+        if(null == serviceInterface){
+            throw new IllegalArgumentException ( "the serviceInterface can't be null" );
+        }
+        if(0 == port){
+            throw new IllegalArgumentException ( "set the right port" );
+        }
     }
 
 }

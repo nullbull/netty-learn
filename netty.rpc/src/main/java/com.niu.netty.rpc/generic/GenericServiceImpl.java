@@ -3,6 +3,7 @@ package com.niu.netty.rpc.generic;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.thrift.TException;
 import org.springframework.aop.support.AopUtils;
 
@@ -32,7 +33,7 @@ public class GenericServiceImpl implements GenericService.Iface{
         List<String> requestObject = request.getRequestObj();
         Class<?> targetImpl = AopUtils.getTargetClass(realImpl);
         this.realClassName = targetImpl.getName();
-
+        checkParam(request);
 
         List<Class> realClassTypes = null;
         if (null != clazzType && !clazzType.isEmpty()) {
@@ -95,6 +96,32 @@ public class GenericServiceImpl implements GenericService.Iface{
                 return short.class;
             case "byte":
                 return byte.class;
+            case "boolean":
+                return boolean.class;
+            case "char":
+                return char.class;
+            case "float":
+                return float.class;
+            default:
+                return this.getClass().getClassLoader().loadClass(stringType);
+        }
+    }
+
+    private void checkParam(GenericRequest request) throws TException{
+        String methodName = request.getMethodName();
+        List<String> clazzTypes = request.getClassType();
+        List<String> requestObjects = request.getRequestObj();
+        if(clazzTypes != null && requestObjects == null){
+            throw new TException ( "class:" + realClassName +  ",generic param check error classTypes != null && requestObjs == null " );
+        }
+        if(clazzTypes == null && requestObjects != null){
+            throw new TException ( "class:" + realClassName +  ",generic param check error classTypes == null && requestObjs != null" );
+        }
+        if (clazzTypes != null  && (requestObjects.size () != requestObjects.size ())) {
+            throw new TException ( "class:" + realClassName +  ",generic param check error list size error" );
+        }
+        if(StringUtils.isEmpty (  methodName)){
+            throw new TException ( "class:" + realClassName +  ",methodName can not be empty!" );
         }
     }
 
