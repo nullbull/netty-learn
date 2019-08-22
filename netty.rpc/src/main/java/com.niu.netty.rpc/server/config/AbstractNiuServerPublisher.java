@@ -65,13 +65,14 @@ public class AbstractNiuServerPublisher {
             return getProcessorClass(GenericService.class).getDeclaredConstructor(clazz).newInstance(new GenericServiceImpl(serviceImpl));
         } catch (NoSuchMethodException e) {
         log.error ( "can't find the GenericTProcessor Constructor with Iface",e );
-    } catch (IllegalAccessException e) {
-            log.error ( "IllegalAccessException the GenericTProcessor with Iface" );
-    } catch (InstantiationException e) {
-            log.error ( "IllegalInstantiationExceptionAccessException the GenericTProcessor with Iface",e );
-    } catch (InvocationTargetException e) {
-            log.error ( "InvocationTargetException the GenericTProcessor with Iface",e );
-    }
+        } catch (IllegalAccessException e) {
+                log.error ( "IllegalAccessException the GenericTProcessor with Iface" );
+        } catch (InstantiationException e) {
+                log.error ( "IllegalInstantiationExceptionAccessException the GenericTProcessor with Iface",e );
+        } catch (InvocationTargetException e) {
+                log.error ( "InvocationTargetException the GenericTProcessor with Iface",e );
+        }
+        return null;
     }
 
 

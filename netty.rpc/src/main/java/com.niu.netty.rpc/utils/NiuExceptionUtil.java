@@ -10,7 +10,7 @@ import java.io.PrintStream;
  */
 public class NiuExceptionUtil {
     public static String getExceptionInfo(Exception e) {
-        try(ByteArrayOutputStream out = new ByteArrayOutputStream();
+        try (ByteArrayOutputStream out = new ByteArrayOutputStream();
             PrintStream printStream = new PrintStream(out)) {
             e.printStackTrace(printStream);
             String ret = new String(out.toByteArray());
@@ -19,7 +19,5 @@ public class NiuExceptionUtil {
             ex.printStackTrace();
         }
         return "";
-
-
     }
 }
