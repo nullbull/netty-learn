@@ -3,6 +3,7 @@ package com.niu.netty.rpc.client.cluster.impl;
 import com.niu.netty.rpc.client.cluster.ILoadBalancer;
 import com.niu.netty.rpc.client.cluster.Icluster;
 import com.niu.netty.rpc.client.cluster.RemoteServer;
+import com.niu.netty.rpc.poolfactory.NiuPoolableObjectFactory;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.pool2.impl.AbandonedConfig;
 import org.apache.commons.pool2.impl.GenericObjectPool;
@@ -45,6 +46,22 @@ public abstract class AbstractBaseIcluster implements Icluster {
     }
 
     protected GenericObjectPool<TTransport> createGenericObjectPool(RemoteServer remoteServer) {
-        GenericObjectPool<TTransport> genericObjectPool = new GenericObjectPool<>(new N )
+        GenericObjectPool<TTransport> genericObjectPool = new GenericObjectPool<>(new NiuPoolableObjectFactory(remoteServer, this.connectionTimeout, this.soTimeout, this.async), this.genericObjectPoolConfig);
+        genericObjectPool.setAbandonedConfig(this.abandonedConfig);
+        if (0 == genericObjectPoolConfig.getMinIdle()) {
+            genericObjectPool.setMinEvictableIdleTimeMillis(-1);
+            genericObjectPool.setSoftMinEvictableIdleTimeMillis(-1);
+        }
+        return genericObjectPool;
+    }
+    protected void destroyGenericObjectPool(GenericObjectPool genericObjectPool) {
+        if (null != genericObjectPool) {
+            genericObjectPool.close();
+        }
+    }
+
+
+    protected String createMapKey(RemoteServer remoteServer){
+        return remoteServer.getIp ().concat ( "-" ).concat(remoteServer.getPort());
     }
 }

@@ -4,7 +4,6 @@ import com.niu.netty.rpc.client.cluster.ILoadBalancer;
 import com.niu.netty.rpc.client.cluster.RemoteServer;
 import com.niu.netty.rpc.client.cluster.ServerObject;
 import com.niu.netty.rpc.utils.NiuRegexUtil;
-import com.sun.org.apache.bcel.internal.generic.ANEWARRAY;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.pool2.impl.AbandonedConfig;
@@ -103,10 +102,5 @@ public class DirectClisterImpl extends AbstractBaseIcluster {
         GenericObjectPool<TTransport> pool = createGenericObjectPool(remoteServer);
         serverPoolMap.put(key, pool);
         return new ServerObject(pool, remoteServer);
-    }
-
-
-    private String createMapKey(RemoteServer remoteServer) {
-        return remoteServer.getIp().concat("-").concat(remoteServer.getPort());
     }
 }
