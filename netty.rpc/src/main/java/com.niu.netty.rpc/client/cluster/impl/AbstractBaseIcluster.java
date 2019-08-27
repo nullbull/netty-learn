@@ -45,6 +45,6 @@ public abstract class AbstractBaseIcluster implements Icluster {
     }
 
     protected GenericObjectPool<TTransport> createGenericObjectPool(RemoteServer remoteServer) {
-        GenericObjectPool<TTransport> genericObjectPool = new GenericObjectPool<>(new N)
+        GenericObjectPool<TTransport> genericObjectPool = new GenericObjectPool<>(new N )
     }
 }
