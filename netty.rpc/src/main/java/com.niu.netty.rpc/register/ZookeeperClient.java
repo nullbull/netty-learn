@@ -6,12 +6,16 @@ import com.niu.netty.rpc.utils.IPUtil;
 import heartbeat.request.HeartBeat;
 import heartbeat.service.HeartbeatService;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.pool2.impl.GenericObjectPool;
+import org.apache.thrift.transport.TTransport;
 import org.apache.zookeeper.WatchedEvent;
 import org.apache.zookeeper.Watcher;
 import org.apache.zookeeper.ZooKeeper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -97,12 +101,12 @@ public class ZookeeperClient {
             }
         }
     }
-    private class HeartbeatRUn implements Runnable {
+    private class HeartbeatRun implements Runnable {
 
         @Override
         public void run() {
             try {
-                zookeeperCluster.writeLock.unlock();
+                zookeeperCluster.writeLock.lock();
                 if (null != serverHeartbeatMap && !serverHeartbeatMap.isEmpty()) {
                     Iterator it = serverHeartbeatMap.entrySet().iterator();
                     in:
@@ -110,6 +114,53 @@ public class ZookeeperClient {
                         String str = ((Map.Entry<String, HeartbeatService.Client>)it.next()).getKey();
                         String ip = str.split("-")[0];
                         String port = str.split("-")[1];
+
+                        if (null != serverList) {
+                            for (int i = serverList.size() - 1; i >= 0; i--) {
+                                RemoteServer remoteServer = serverList.get(i);
+                                if (ip.equals(remoteServer.getIp()) && port.equals(remoteServer.getPort())) {
+                                    if (!remoteServer.isEnable()) {
+                                        continue in;
+                                    }
+                                }
+                            }
+                        }
+
+                        HeartbeatService.Client client = serverHeartbeatMap.get(str);
+                        HeartBeat heartBeat = new HeartBeat();
+                        heartBeat.setIp(IPUtil.getIPV4());
+                        heartBeat.setServiceName(ZookeeperClient.this.serviceName);
+                        heartBeat.setDate(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd hh:MM:ss")));
+                        int retry = 3;
+                        while (retry-- > 0) {
+                            try {
+                                HeartBeat respone = client.getHeartBeat(heartBeat);
+                                log.info("HeartBeat info:ip:{},serviceName:{}", respone.getIp(), serviceName);
+                                break;
+                            } catch (Exception e) {
+                                if (0 == retry) {
+                                    log.warn("HeartBeat error:{}", heartBeat);
+                                    if (null != serverList) {
+                                        for (int i = serverList.size() - 1; i >= 0; i--) {
+                                            RemoteServer remoteServer = serverList.get(i);
+                                            if (remoteServer.getIp().equals(ip) && remoteServer.getPort().equals(port)) {
+                                                try {
+                                                    serverList.remove(i);
+                                                    it.remove();
+                                                    if (zookeeperCluster.serverPoolMap.contains(str)) {
+                                                        GenericObjectPool<TTransport> transport = zookeeperCluster.serverPoolMap.get(str);
+                                                        zookeeperCluster.serverPoolMap.remove(str);
+                                                        transport.close();
+                                                    }
+                                                    continue in;
+                                                } catch (Exception e1) {
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -140,7 +191,16 @@ public class ZookeeperClient {
 
         private void reConnected() {
             try {
-                zookeeperCluster.
+                zookeeperCluster.writeLock.lock();
+                ZookeeperClient.this.destroy();
+                firstInitChild = new CountDownLatch(1);
+                serverList = new CopyOnWriteArrayList<>();
+                //心跳服务
+                serverHeartbeatMap = new ConcurrentHashMap<>();
+                executorService = Executors.newScheduledThreadPool(1);
+                ZookeeperClient.this.initZookeeper();
+            } finally {
+                zookeeperCluster.writeLock.unlock();
             }
         }
     }
