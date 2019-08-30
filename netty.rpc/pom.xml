@@ -12,7 +12,7 @@
     <artifactId>netty.rpc</artifactId>
     <properties>
         <apache.version>0.8.0</apache.version>
-        <zk.version>3.4.6</zk.version>
+        <zk.version>3.5.5</zk.version>
     </properties>
     <dependencies>
         <dependency>

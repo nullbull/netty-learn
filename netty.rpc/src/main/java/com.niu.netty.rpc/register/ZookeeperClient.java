@@ -14,16 +14,19 @@ import org.apache.thrift.protocol.TProtocol;
 import org.apache.thrift.transport.TSocket;
 import org.apache.thrift.transport.TTransport;
 import org.apache.thrift.transport.TTransportException;
-import org.apache.zookeeper.KeeperException;
-import org.apache.zookeeper.WatchedEvent;
-import org.apache.zookeeper.Watcher;
-import org.apache.zookeeper.ZooKeeper;
+import org.apache.zookeeper.*;
 import org.apache.zookeeper.data.Stat;
 
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.Period;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.TemporalField;
+import java.time.temporal.TemporalUnit;
+import java.util.Calendar;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -107,6 +110,25 @@ public class ZookeeperClient {
                 throw new IllegalArgumentException("zk client connected fail!");
             }
         } catch (InterruptedException e) {
+            log.error(e.getMessage(), e);
+        }
+
+        try {
+            String envPath = env.startsWith("/") ? env : "/".concat(env);
+            if (zooKeeper.exists(envPath, null) == null) {
+                zooKeeper.create(envPath, "".getBytes(), ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
+            }
+            String servicePath = serviceName.startsWith("/") ? serviceName : "/".concat(serviceName);
+            if (zooKeeper.exists(envPath + servicePath, null) == null) {
+                zooKeeper.create(envPath + servicePath, "".getBytes(), ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
+            }
+            String fullPath = envPath + servicePath;
+            Watcher w = new NiuWatcher();
+            getChildren(fullPath, w);
+            watchChildDateChange(fullPath, w);
+        } catch (InterruptedException e) {
+            log.error(e.getMessage(), e);
+        } catch (KeeperException e) {
             log.error(e.getMessage(), e);
         }
     }
@@ -324,7 +346,9 @@ public class ZookeeperClient {
                     try {
                         String data = new String(bytes, "UTF-8");
                         JSONObject json = JSONObject.parseObject(data);
+
                         String ip = childPath.split(":")[0];
+
                         String port = childPath.split(":")[1];
 
                         String weight = json.getString("weight");
@@ -339,24 +363,60 @@ public class ZookeeperClient {
                         //HeartBeat
                         TSocket t = new TSocket(remoteServer.getIp(), Integer.parseInt(remoteServer.getPort()), TIMEOUT);
                         TTransport tTransport = new TNiuFramedTransport(t);
-                        ((TNiuFramedTransport) tTransport)((TNiuFramedTransport) tTransport).setHeartbeat(HEARTBEAT);
+                        ((TNiuFramedTransport) tTransport).setHeartbeat(HEARTBEAT);
                         TProtocol protocol = new NiuBinaryProtocol(tTransport);
                         HeartbeatService.Client client = new HeartbeatService.Client(protocol);
                         tTransport.open();
                         serverHeartbeatMap.put(zookeeperCluster.createMapKey(remoteServer), client);
                     } catch (UnsupportedEncodingException e) {
-                        log.error ( e.getMessage () + " UTF-8 is not allow!", e );
+                        log.error (e.getMessage() + " UTF-8 is not allow!", e);
                     } catch (TTransportException e) {
-                        log.error ( e.getMessage (), e );
+                        log.error (e.getMessage(), e);
                     }
                 } catch (KeeperException e) {
-                    log.error ( e.getMessage () + "currPath is not exists!", e );
+                    log.error (e.getMessage()+ "currPath is not exists!", e);
                 } catch (InterruptedException e) {
-                    log.error ( e.getMessage () + "the current thread is Interrupted", e );
+                    log.error (e.getMessage() + "the current thread is Interrupted", e);
                 }
             }
         } finally {
             zookeeperCluster.writeLock.unlock();
         }
+    }
+
+    private void getChildren(String path, Watcher w) {
+        try {
+            List<String> childPaths = this.zooKeeper.getChildren(path, w);
+            updateServerList(childPaths, path);
+        } catch (KeeperException e) {
+            log.error(e.getMessage(), e);
+        } catch (InterruptedException e) {
+            log.error(e.getMessage(), e);
+        }
+    }
+
+    private void watchChildDateChange(String path, Watcher w) {
+        try {
+            List<String> childPath = zooKeeper.getChildren(path, null);
+            for (String child : childPath) {
+                String fullPath = path.concat("/").concat(child);
+                this.zooKeeper.getData(fullPath, w, new Stat());
+            }
+        } catch (KeeperException | InterruptedException e) {
+            log.error(e.getMessage(), e);
+        } finally {
+            firstInitChild.countDown();
+        }
+    }
+    private void initScheduled() {
+        LocalTime localTime = LocalTime.now();
+        LocalTime after = LocalTime.of(localTime.getHour(), localTime.getMinute(), 0);
+        int time = (after.getNano() - localTime.getNano()) / (1000 * 1000);
+        if (time >= 10 * 1000) {
+            executorService.scheduleWithFixedDelay(new HeartbeatRun(), time / 1000, 60, TimeUnit.SECONDS);
+        } else {
+            executorService.scheduleWithFixedDelay(new HeartbeatRun(), time / 1000 + 60, 60, TimeUnit.SECONDS);
+        }
+
     }
 }
