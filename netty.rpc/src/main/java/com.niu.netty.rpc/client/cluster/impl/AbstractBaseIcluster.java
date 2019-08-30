@@ -61,7 +61,7 @@ public abstract class AbstractBaseIcluster implements Icluster {
     }
 
 
-    protected String createMapKey(RemoteServer remoteServer){
+    public String createMapKey(RemoteServer remoteServer){
         return remoteServer.getIp ().concat ( "-" ).concat(remoteServer.getPort());
     }
 }

@@ -4,7 +4,7 @@
  * DO NOT EDIT UNLESS YOU ARE SURE THAT YOU KNOW WHAT YOU ARE DOING
  *  @generated
  */
-package heartbeat.service;
+package com.niu.netty.rpc.heartbeat.service;
 
 import org.apache.thrift.protocol.TTupleProtocol;
 import org.apache.thrift.scheme.IScheme;
@@ -33,13 +33,13 @@ public class HeartbeatService {
      * 
      * @param heartBeat
      */
-    public heartbeat.request.HeartBeat getHeartBeat(heartbeat.request.HeartBeat heartBeat) throws org.apache.thrift.TException;
+    public com.niu.netty.rpc.heartbeat.request.HeartBeat getHeartBeat(com.niu.netty.rpc.heartbeat.request.HeartBeat heartBeat) throws org.apache.thrift.TException;
 
   }
 
   public interface AsyncIface {
 
-    public void getHeartBeat(heartbeat.request.HeartBeat heartBeat, org.apache.thrift.async.AsyncMethodCallback<AsyncClient.getHeartBeat_call> resultHandler) throws org.apache.thrift.TException;
+    public void getHeartBeat(com.niu.netty.rpc.heartbeat.request.HeartBeat heartBeat, org.apache.thrift.async.AsyncMethodCallback<AsyncClient.getHeartBeat_call> resultHandler) throws org.apache.thrift.TException;
 
   }
 
@@ -63,20 +63,20 @@ public class HeartbeatService {
       super(iprot, oprot);
     }
 
-    public heartbeat.request.HeartBeat getHeartBeat(heartbeat.request.HeartBeat heartBeat) throws org.apache.thrift.TException
+    public com.niu.netty.rpc.heartbeat.request.HeartBeat getHeartBeat(com.niu.netty.rpc.heartbeat.request.HeartBeat heartBeat) throws org.apache.thrift.TException
     {
       send_getHeartBeat(heartBeat);
       return recv_getHeartBeat();
     }
 
-    public void send_getHeartBeat(heartbeat.request.HeartBeat heartBeat) throws org.apache.thrift.TException
+    public void send_getHeartBeat(com.niu.netty.rpc.heartbeat.request.HeartBeat heartBeat) throws org.apache.thrift.TException
     {
       getHeartBeat_args args = new getHeartBeat_args();
       args.setHeartBeat(heartBeat);
       sendBase("getHeartBeat", args);
     }
 
-    public heartbeat.request.HeartBeat recv_getHeartBeat() throws org.apache.thrift.TException
+    public com.niu.netty.rpc.heartbeat.request.HeartBeat recv_getHeartBeat() throws org.apache.thrift.TException
     {
       getHeartBeat_result result = new getHeartBeat_result();
       receiveBase(result, "getHeartBeat");
@@ -104,7 +104,7 @@ public class HeartbeatService {
       super(protocolFactory, clientManager, transport);
     }
 
-    public void getHeartBeat(heartbeat.request.HeartBeat heartBeat, org.apache.thrift.async.AsyncMethodCallback<getHeartBeat_call> resultHandler) throws org.apache.thrift.TException {
+    public void getHeartBeat(com.niu.netty.rpc.heartbeat.request.HeartBeat heartBeat, org.apache.thrift.async.AsyncMethodCallback<getHeartBeat_call> resultHandler) throws org.apache.thrift.TException {
       checkReady();
       getHeartBeat_call method_call = new getHeartBeat_call(heartBeat, resultHandler, this, ___protocolFactory, ___transport);
       this.___currentMethod = method_call;
@@ -112,8 +112,8 @@ public class HeartbeatService {
     }
 
     public static class getHeartBeat_call extends org.apache.thrift.async.TAsyncMethodCall {
-      private heartbeat.request.HeartBeat heartBeat;
-      public getHeartBeat_call(heartbeat.request.HeartBeat heartBeat, org.apache.thrift.async.AsyncMethodCallback<getHeartBeat_call> resultHandler, org.apache.thrift.async.TAsyncClient client, org.apache.thrift.protocol.TProtocolFactory protocolFactory, org.apache.thrift.transport.TNonblockingTransport transport) throws org.apache.thrift.TException {
+      private com.niu.netty.rpc.heartbeat.request.HeartBeat heartBeat;
+      public getHeartBeat_call(com.niu.netty.rpc.heartbeat.request.HeartBeat heartBeat, org.apache.thrift.async.AsyncMethodCallback<getHeartBeat_call> resultHandler, org.apache.thrift.async.TAsyncClient client, org.apache.thrift.protocol.TProtocolFactory protocolFactory, org.apache.thrift.transport.TNonblockingTransport transport) throws org.apache.thrift.TException {
         super(client, protocolFactory, transport, resultHandler, false);
         this.heartBeat = heartBeat;
       }
@@ -126,7 +126,7 @@ public class HeartbeatService {
         prot.writeMessageEnd();
       }
 
-      public heartbeat.request.HeartBeat getResult() throws org.apache.thrift.TException {
+      public com.niu.netty.rpc.heartbeat.request.HeartBeat getResult() throws org.apache.thrift.TException {
         if (getState() != State.RESPONSE_READ) {
           throw new IllegalStateException("Method call not finished!");
         }
@@ -182,7 +182,7 @@ public class HeartbeatService {
       schemes.put(TupleScheme.class, new getHeartBeat_argsTupleSchemeFactory());
     }
 
-    public heartbeat.request.HeartBeat heartBeat; // required
+    public com.niu.netty.rpc.heartbeat.request.HeartBeat heartBeat; // required
 
     /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
     public enum _Fields implements org.apache.thrift.TFieldIdEnum {
@@ -247,7 +247,7 @@ public class HeartbeatService {
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
       tmpMap.put(_Fields.HEART_BEAT, new org.apache.thrift.meta_data.FieldMetaData("heartBeat", org.apache.thrift.TFieldRequirementType.DEFAULT, 
-          new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, heartbeat.request.HeartBeat.class)));
+          new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, com.niu.netty.rpc.heartbeat.request.HeartBeat.class)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(getHeartBeat_args.class, metaDataMap);
     }
@@ -256,7 +256,7 @@ public class HeartbeatService {
     }
 
     public getHeartBeat_args(
-      heartbeat.request.HeartBeat heartBeat)
+      com.niu.netty.rpc.heartbeat.request.HeartBeat heartBeat)
     {
       this();
       this.heartBeat = heartBeat;
@@ -267,7 +267,7 @@ public class HeartbeatService {
      */
     public getHeartBeat_args(getHeartBeat_args other) {
       if (other.isSetHeartBeat()) {
-        this.heartBeat = new heartbeat.request.HeartBeat(other.heartBeat);
+        this.heartBeat = new com.niu.netty.rpc.heartbeat.request.HeartBeat(other.heartBeat);
       }
     }
 
@@ -280,11 +280,11 @@ public class HeartbeatService {
       this.heartBeat = null;
     }
 
-    public heartbeat.request.HeartBeat getHeartBeat() {
+    public com.niu.netty.rpc.heartbeat.request.HeartBeat getHeartBeat() {
       return this.heartBeat;
     }
 
-    public getHeartBeat_args setHeartBeat(heartbeat.request.HeartBeat heartBeat) {
+    public getHeartBeat_args setHeartBeat(com.niu.netty.rpc.heartbeat.request.HeartBeat heartBeat) {
       this.heartBeat = heartBeat;
       return this;
     }
@@ -310,7 +310,7 @@ public class HeartbeatService {
         if (value == null) {
           unsetHeartBeat();
         } else {
-          setHeartBeat((heartbeat.request.HeartBeat)value);
+          setHeartBeat((com.niu.netty.rpc.heartbeat.request.HeartBeat)value);
         }
         break;
 
@@ -458,7 +458,7 @@ public class HeartbeatService {
           switch (schemeField.id) {
             case 1: // HEART_BEAT
               if (schemeField.type == org.apache.thrift.protocol.TType.STRUCT) {
-                struct.heartBeat = new heartbeat.request.HeartBeat();
+                struct.heartBeat = new com.niu.netty.rpc.heartbeat.request.HeartBeat();
                 struct.heartBeat.read(iprot);
                 struct.setHeartBeatIsSet(true);
               } else { 
@@ -517,7 +517,7 @@ public class HeartbeatService {
         TTupleProtocol iprot = (TTupleProtocol) prot;
         BitSet incoming = iprot.readBitSet(1);
         if (incoming.get(0)) {
-          struct.heartBeat = new heartbeat.request.HeartBeat();
+          struct.heartBeat = new com.niu.netty.rpc.heartbeat.request.HeartBeat();
           struct.heartBeat.read(iprot);
           struct.setHeartBeatIsSet(true);
         }
@@ -537,7 +537,7 @@ public class HeartbeatService {
       schemes.put(TupleScheme.class, new getHeartBeat_resultTupleSchemeFactory());
     }
 
-    public heartbeat.request.HeartBeat success; // required
+    public com.niu.netty.rpc.heartbeat.request.HeartBeat success; // required
 
     /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
     public enum _Fields implements org.apache.thrift.TFieldIdEnum {
@@ -602,7 +602,7 @@ public class HeartbeatService {
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
       tmpMap.put(_Fields.SUCCESS, new org.apache.thrift.meta_data.FieldMetaData("success", org.apache.thrift.TFieldRequirementType.DEFAULT, 
-          new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, heartbeat.request.HeartBeat.class)));
+          new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, com.niu.netty.rpc.heartbeat.request.HeartBeat.class)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(getHeartBeat_result.class, metaDataMap);
     }
@@ -611,7 +611,7 @@ public class HeartbeatService {
     }
 
     public getHeartBeat_result(
-      heartbeat.request.HeartBeat success)
+      com.niu.netty.rpc.heartbeat.request.HeartBeat success)
     {
       this();
       this.success = success;
@@ -622,7 +622,7 @@ public class HeartbeatService {
      */
     public getHeartBeat_result(getHeartBeat_result other) {
       if (other.isSetSuccess()) {
-        this.success = new heartbeat.request.HeartBeat(other.success);
+        this.success = new com.niu.netty.rpc.heartbeat.request.HeartBeat(other.success);
       }
     }
 
@@ -635,11 +635,11 @@ public class HeartbeatService {
       this.success = null;
     }
 
-    public heartbeat.request.HeartBeat getSuccess() {
+    public com.niu.netty.rpc.heartbeat.request.HeartBeat getSuccess() {
       return this.success;
     }
 
-    public getHeartBeat_result setSuccess(heartbeat.request.HeartBeat success) {
+    public getHeartBeat_result setSuccess(com.niu.netty.rpc.heartbeat.request.HeartBeat success) {
       this.success = success;
       return this;
     }
@@ -665,7 +665,7 @@ public class HeartbeatService {
         if (value == null) {
           unsetSuccess();
         } else {
-          setSuccess((heartbeat.request.HeartBeat)value);
+          setSuccess((com.niu.netty.rpc.heartbeat.request.HeartBeat)value);
         }
         break;
 
@@ -813,7 +813,7 @@ public class HeartbeatService {
           switch (schemeField.id) {
             case 0: // SUCCESS
               if (schemeField.type == org.apache.thrift.protocol.TType.STRUCT) {
-                struct.success = new heartbeat.request.HeartBeat();
+                struct.success = new com.niu.netty.rpc.heartbeat.request.HeartBeat();
                 struct.success.read(iprot);
                 struct.setSuccessIsSet(true);
               } else { 
@@ -872,7 +872,7 @@ public class HeartbeatService {
         TTupleProtocol iprot = (TTupleProtocol) prot;
         BitSet incoming = iprot.readBitSet(1);
         if (incoming.get(0)) {
-          struct.success = new heartbeat.request.HeartBeat();
+          struct.success = new com.niu.netty.rpc.heartbeat.request.HeartBeat();
           struct.success.read(iprot);
           struct.setSuccessIsSet(true);
         }

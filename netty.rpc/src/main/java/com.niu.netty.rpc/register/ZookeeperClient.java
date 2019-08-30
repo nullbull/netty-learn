@@ -1,22 +1,29 @@
 package com.niu.netty.rpc.register;
 
+import com.alibaba.fastjson.JSONObject;
 import com.niu.netty.rpc.client.cluster.RemoteServer;
 import com.niu.netty.rpc.client.cluster.impl.ZookeeperClusterImpl;
+import com.niu.netty.rpc.protol.NiuBinaryProtocol;
+import com.niu.netty.rpc.transport.TNiuFramedTransport;
 import com.niu.netty.rpc.utils.IPUtil;
-import heartbeat.request.HeartBeat;
-import heartbeat.service.HeartbeatService;
+import com.niu.netty.rpc.heartbeat.request.HeartBeat;
+import com.niu.netty.rpc.heartbeat.service.HeartbeatService;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.pool2.impl.GenericObjectPool;
+import org.apache.thrift.protocol.TProtocol;
+import org.apache.thrift.transport.TSocket;
 import org.apache.thrift.transport.TTransport;
+import org.apache.thrift.transport.TTransportException;
+import org.apache.zookeeper.KeeperException;
 import org.apache.zookeeper.WatchedEvent;
 import org.apache.zookeeper.Watcher;
 import org.apache.zookeeper.ZooKeeper;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.zookeeper.data.Stat;
 
+import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -81,8 +88,26 @@ public class ZookeeperClient {
         CountDownLatch countDownLatch = new CountDownLatch(1);
         if (null == zooKeeper) {
             try {
-                zooKeeper = new ZooKeeper(path, SESSION_TIMEOUT, new ClientInitWatcher(c));
+                zooKeeper = new ZooKeeper(path, SESSION_TIMEOUT, new ClientInitWatcher(countDownLatch));
+            } catch (IOException e) {
+                log.error("zk server faild service:" + env + "-" + serviceName, e);
             }
+        }
+        try {
+            int retry = 3;
+            boolean connected = false;
+            while (retry++ < RETRY_TIMES) {
+                if (countDownLatch.await(5, TimeUnit.SECONDS)) {
+                    connected = true;
+                    break;
+                }
+            }
+            if(!connected) {
+                log.error("zk Client connected fail! :" + env + "-" + serviceName);
+                throw new IllegalArgumentException("zk client connected fail!");
+            }
+        } catch (InterruptedException e) {
+            log.error(e.getMessage(), e);
         }
     }
     public void destroy() {
@@ -163,6 +188,8 @@ public class ZookeeperClient {
                         }
                     }
                 }
+            } finally {
+                zookeeperCluster.writeLock.unlock();
             }
         }
     }
@@ -202,6 +229,134 @@ public class ZookeeperClient {
             } finally {
                 zookeeperCluster.writeLock.unlock();
             }
+        }
+    }
+
+    private class NiuWatcher implements Watcher {
+
+        @Override
+        public void process(WatchedEvent watchedEvent) {
+            if (watchedEvent.getState().equals(Event.KeeperState.SyncConnected)) {
+                if (watchedEvent.getType() == Event.EventType.NodeChildrenChanged) {
+                    String parentPath = watchedEvent.getPath();
+                    log.info("the service {} is changed!", serviceName);
+                    try {
+                        firstInitChild.await();
+                        List<String> childPaths = ZookeeperClient.this.zooKeeper.getChildren(parentPath, this);
+                        ZookeeperClient.this.updateServerList(childPaths, parentPath);
+                        log.info("the serviceList: {} !", childPaths);
+                        for (String childPath : childPaths) {
+                            String fullPath = parentPath.concat("/").concat(childPath);
+                            ZookeeperClient.this.zooKeeper.getData(fullPath, this, new Stat());
+                        }
+                    } catch (KeeperException e) {
+                        log.error(e.getMessage(), e);
+                    } catch (InterruptedException e) {
+                        log.error(e.getMessage(), e);
+                    }
+                }
+            }
+            if (watchedEvent.getType() == Event.EventType.NodeDataChanged) {
+                String fullPath = watchedEvent.getPath();
+                log.info("the service 【{}】 data {} is changed ! full mess is 【{}】", serviceName, fullPath);
+                try {
+                    firstInitChild.await();
+                    String data = new String(ZookeeperClient.this.zooKeeper.getData(fullPath, this, new Stat()));
+                    JSONObject json = JSONObject.parseObject(data);
+                    String childPath = fullPath.substring(fullPath.lastIndexOf("/") + 1);
+                    //192.168.3.2:6666
+                    String ip = childPath.split(":")[0];
+                    String port = childPath.split(":")[1];
+                    String weight = json.getString("weight");
+                    String enable = json.getString("enable");
+                    String server = json.getString("server");
+
+                    RemoteServer remoteServer = new RemoteServer(ip, port, Integer.parseInt(weight), "1".equals(enable), server);
+                    ZookeeperClient.this.updateServer(remoteServer);
+                } catch (KeeperException e) {
+                    e.printStackTrace ();
+                } catch (InterruptedException e) {
+                    e.printStackTrace ();
+                }
+            }
+        }
+    }
+    private void updateServer(RemoteServer remoteServer) {
+        try {
+            zookeeperCluster.writeLock.lock();
+            if (null != serverList) {
+                for (int i = 0; i < serverList.size(); i++) {
+                    RemoteServer tempServer = serverList.get(i);
+                    if (tempServer.getIp().equals(remoteServer.getIp()) && tempServer.getPort().equals(remoteServer.getPort())) {
+                        serverList.set(i, remoteServer);
+                        tempServer = null;
+                    }
+                }
+            }
+        } finally {
+            zookeeperCluster.writeLock.unlock();
+        }
+    }
+
+    private void updateServerList(List<String> childPaths, String parentPath) {
+        try {
+            zookeeperCluster.writeLock.lock();
+            if (!serverList.isEmpty()) {
+                serverList.clear();
+            }
+            if (!serverHeartbeatMap.isEmpty()) {
+                serverHeartbeatMap.clear();
+            }
+            if (null != zookeeperCluster.serverPoolMap && !zookeeperCluster.serverPoolMap.isEmpty()) {
+                Iterator it = zookeeperCluster.serverPoolMap.entrySet().iterator();
+                while (it.hasNext()) {
+                    Map.Entry<String, GenericObjectPool> e = (Map.Entry) it.next();
+                    if (null != e.getValue()) {
+                        e.getValue().close();
+                    }
+                    it.remove();
+                }
+            }
+            for (String childPath : childPaths) {
+                String currentPath = parentPath.concat("/").concat(childPath);
+                try {
+                    byte[] bytes = zooKeeper.getData(currentPath, null, new Stat());
+                    try {
+                        String data = new String(bytes, "UTF-8");
+                        JSONObject json = JSONObject.parseObject(data);
+                        String ip = childPath.split(":")[0];
+                        String port = childPath.split(":")[1];
+
+                        String weight = json.getString("weight");
+
+                        String enable = json.getString("enable");
+
+                        String server = json.getString("server");
+
+                        RemoteServer remoteServer = new RemoteServer(ip, port, Integer.parseInt(weight), "1".equals(enable), server);
+                        serverList.add(remoteServer);
+
+                        //HeartBeat
+                        TSocket t = new TSocket(remoteServer.getIp(), Integer.parseInt(remoteServer.getPort()), TIMEOUT);
+                        TTransport tTransport = new TNiuFramedTransport(t);
+                        ((TNiuFramedTransport) tTransport)((TNiuFramedTransport) tTransport).setHeartbeat(HEARTBEAT);
+                        TProtocol protocol = new NiuBinaryProtocol(tTransport);
+                        HeartbeatService.Client client = new HeartbeatService.Client(protocol);
+                        tTransport.open();
+                        serverHeartbeatMap.put(zookeeperCluster.createMapKey(remoteServer), client);
+                    } catch (UnsupportedEncodingException e) {
+                        log.error ( e.getMessage () + " UTF-8 is not allow!", e );
+                    } catch (TTransportException e) {
+                        log.error ( e.getMessage (), e );
+                    }
+                } catch (KeeperException e) {
+                    log.error ( e.getMessage () + "currPath is not exists!", e );
+                } catch (InterruptedException e) {
+                    log.error ( e.getMessage () + "the current thread is Interrupted", e );
+                }
+            }
+        } finally {
+            zookeeperCluster.writeLock.unlock();
         }
     }
 }

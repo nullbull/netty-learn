@@ -1,8 +1,8 @@
-package heartbeat.impl;
+package com.niu.netty.rpc.heartbeat.impl;
 
 import com.niu.netty.rpc.utils.IPUtil;
-import heartbeat.request.HeartBeat;
-import heartbeat.service.HeartbeatService;
+import com.niu.netty.rpc.heartbeat.request.HeartBeat;
+import com.niu.netty.rpc.heartbeat.service.HeartbeatService;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.thrift.TException;
 
@@ -18,7 +18,7 @@ public class HeartbeatServiceImpl implements HeartbeatService.Iface {
 
 
     @Override
-    public heartbeat.request.HeartBeat getHeartBeat(heartbeat.request.HeartBeat heartBeat) throws TException {
+    public com.niu.netty.rpc.heartbeat.request.HeartBeat getHeartBeat(com.niu.netty.rpc.heartbeat.request.HeartBeat heartBeat) throws TException {
         log.info( "HeartBeat info :{}" ,heartBeat );
         HeartBeat heartBeatRespone = new HeartBeat();
         heartBeatRespone.setIp ( IPUtil.getIPV4 () );
