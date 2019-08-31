@@ -1,4 +1,4 @@
-package async;
+package com.niu.netty.rpc.client.async;
 
 import com.niu.netty.rpc.client.cluster.ServerObject;
 import lombok.AllArgsConstructor;

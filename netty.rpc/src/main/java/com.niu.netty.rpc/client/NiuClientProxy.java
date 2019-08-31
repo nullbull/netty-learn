@@ -1,14 +1,19 @@
 package com.niu.netty.rpc.client;
 
+import com.niu.netty.rpc.client.cluster.ILoadBalancer;
 import com.niu.netty.rpc.client.cluster.Icluster;
+import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.pool2.impl.AbandonedConfig;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
+import org.apache.thrift.async.TAsyncClientManager;
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.FactoryBean;
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;
 
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 
 /**
@@ -17,6 +22,7 @@ import java.util.concurrent.CountDownLatch;
  * @desc:
  */
 @Slf4j
+@Data
 public class NiuClientProxy implements FactoryBean<Object>, ApplicationContextAware, InitializingBean {
 
 
@@ -95,7 +101,34 @@ public class NiuClientProxy implements FactoryBean<Object>, ApplicationContextAw
     private boolean testWhileIdle = true;
 
     private Icluster icluster;
-    private ILoad
+
+    private ILoadBalancer loadBalancer;
+
+    private String env = "env";
+
+    AbandonedConfig abandonedConfig;
+
+    private boolean removeAbandonedOnBorrow = true;
+
+    private boolean removeAbandonedOnMaintenance = true;
+
+    private int removeAbandonedTimeout = 30;
+
+    private int maxLength = DEFAULT_MAXLENGTH;
+
+    private static int cores = Runtime.getRuntime().availableProcessors();
+
+    private int asyncSelectorThreadCount = cores * 2;
+
+    private static volatile List<TAsyncClientManager> asyncClientManagerList = null;
+
+    private String privateKey;
+
+    private String publicKey;
+
+    private boolean cat = false;
+
+    private
     @Override
     public Object getObject() throws Exception {
         return null;

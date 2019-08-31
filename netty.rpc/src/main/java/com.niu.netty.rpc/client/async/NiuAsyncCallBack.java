@@ -1,4 +1,4 @@
-package async;
+package com.niu.netty.rpc.client.async;
 
 import lombok.extern.slf4j.Slf4j;
 import org.apache.thrift.TApplicationException;
