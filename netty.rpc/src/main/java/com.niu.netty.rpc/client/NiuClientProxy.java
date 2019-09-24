@@ -2,6 +2,7 @@ package com.niu.netty.rpc.client;
 
 import com.niu.netty.rpc.client.cluster.ILoadBalancer;
 import com.niu.netty.rpc.client.cluster.Icluster;
+import com.niu.netty.rpc.generic.GenericService;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.pool2.impl.AbandonedConfig;
@@ -128,15 +129,25 @@ public class NiuClientProxy implements FactoryBean<Object>, ApplicationContextAw
 
     private boolean cat = false;
 
-    private
+    private boolean isCat() { return cat;}
+
+    private Class<?> genericAsyncIface;
+
+    private Class<?> asyncIface;
     @Override
     public Object getObject() throws Exception {
-        return null;
-    }
+        if (null == getNiuServerProxy()) {
+            throw new RuntimeException("the Proxy can't be null");
+        }
+        return getNiuServerProxy();
+     }
 
     @Override
     public Class<?> getObjectType() {
-        return null;
+        if (null == serviceInterface) {
+            return null;
+        }
+        return getIfaceInterface();
     }
 
     @Override
@@ -146,6 +157,89 @@ public class NiuClientProxy implements FactoryBean<Object>, ApplicationContextAw
 
     @Override
     public void setApplicationContext(ApplicationContext applicationContext) throws BeansException {
-
+        this.applicationContext = applicationContext;
     }
+
+    private Class<?> getIfaceInterface() {
+        if (async) {
+            return getAsyncIfaceInterface();
+        }
+        return getSyncIfaceInterface();
+    }
+    private Class<?> getAsyncIfaceInterface() {
+        Class<?>[] classes = null;
+        if (!generic) {
+            if (null != asyncIface) {
+                return asyncIface;
+            }
+            try {
+                classes = this.getClass().getClassLoader().loadClass(serviceInterface).getClasses();
+            } catch (ClassNotFoundException e) {
+                throw new IllegalArgumentException("can't find the class :" + serviceInterface);
+            }
+        } else {
+            if (null != genericAsyncIface){
+                return genericAsyncIface;
+            }
+            classes = GenericService.class.getClasses();
+        }
+        for (Class c : classes) {
+            if (c.isMemberClass() && c.isInterface() && c.getSimpleName().equals(ASYNC_IFACE)) {
+                if (!generic) {
+                    asyncIface = c;
+                }else {
+                    genericAsyncIface = c;
+                }
+                return c;
+            }
+        }
+        throw new IllegalArgumentException ( "can't find the interface AsyncIface,please make the service with thrift tools!" );
+    }
+
+    private Class<?> genericSynIface;
+    private Class<?> synIface;
+
+    private Class<?> getSyncIfaceInterface() {
+        Class<?>[] classes = null;
+
+        if (!generic) {
+            if (null != synIface) {
+                return synIface;
+            }
+            try {
+                classes = this.getClass().getClassLoader().loadClass(serviceInterface).getClasses();
+            } catch (ClassNotFoundException e) {
+                throw new IllegalArgumentException("can't find the class:" + serviceInterface);
+            }
+        } else {
+            if (null != genericSynIface) {
+                return genericAsyncIface;
+            }
+            classes = GenericService.class.getClasses();
+        }
+        for (Class c : classes) {
+            if (c.isMemberClass() && c.isInterface() && c.getSimpleName().equals(IFACE)) {
+                if (!generic) {
+                    synIface = c;
+                } else {
+                    genericSynIface = c;
+                }
+            }
+            return c;
+        }
+        throw new IllegalArgumentException ( "can't find the interface Iface,please make the service with thrift tools" );
+    }
+    private Class<?> genericSynClient;
+
+    private Class<?> synClient;
+
+    private Class<?> getSynClientClass() {
+        Class<?>[] classes = null;
+        if (!generic) {
+            if (null != synClient) {
+                return synClient;
+            }
+        }
+    }
+
 }
