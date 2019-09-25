@@ -2,12 +2,15 @@ package com.niu.netty.rpc.client;
 
 import com.niu.netty.rpc.client.cluster.ILoadBalancer;
 import com.niu.netty.rpc.client.cluster.Icluster;
+import com.niu.netty.rpc.client.invoker.LocalMockInterceptor;
 import com.niu.netty.rpc.generic.GenericService;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.pool2.impl.AbandonedConfig;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.apache.thrift.async.TAsyncClientManager;
+import org.springframework.aop.framework.ProxyFactory;
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.FactoryBean;
 import org.springframework.beans.factory.InitializingBean;
@@ -152,7 +155,20 @@ public class NiuClientProxy implements FactoryBean<Object>, ApplicationContextAw
 
     @Override
     public void afterPropertiesSet() throws Exception {
-
+        if (null == serviceInterface) {
+            throw new IllegalArgumentException("serviceInterface can't be null");
+        }
+        if (null == zkPath && null == serverIPPorts) {
+            throw new IllegalArgumentException("zkPath or serverIpPorts at least ones can't be null");
+        }
+        Class<?> interfacee = null;
+        if (null != localMockServiceImpl && !StringUtils.isEmpty(localMockServiceImpl.trim())) {
+            LocalMockInterceptor localMockInterceptor = new LocalMockInterceptor(localMockServiceImpl);
+            interfacee = getIfaceInterface();
+            ProxyFactory pf = new ProxyFactory(interfacee, localMockInterceptor);
+            setNiuServerProxy(pf.getProxy());
+            return;
+        }
     }
 
     @Override
@@ -239,7 +255,71 @@ public class NiuClientProxy implements FactoryBean<Object>, ApplicationContextAw
             if (null != synClient) {
                 return synClient;
             }
+            try {
+                classes = this.getClass().getClassLoader().loadClass(serviceInterface).getClasses();
+            } catch (ClassNotFoundException e) {
+                throw new IllegalArgumentException("can't find the class:" + serviceInterface);
+            }
+        } else {
+            if (null != genericSynClient) {
+                return genericSynClient;
+            }
+            classes = GenericService.class.getClasses();
         }
+        for (Class c : classes) {
+            if (c.isMemberClass() && !c.isInterface() && c.getSimpleName().equals(CLIENT)) {
+                if (!generic) {
+                    synClient = c;
+                } else {
+                    genericSynClient = c;
+                }
+                return c;
+            }
+        }
+        throw new IllegalArgumentException ( "serviceInterface must contain Sub Class of Client" );
     }
 
+    private Class<?> genericAsyncClient;
+
+    private Class<?> asyncClient;
+
+    private Class<?> getAsyncClientClass() {
+        Class<?>[] classes = null;
+
+        if (!generic) {
+            try {
+                if (null != asyncClient) {
+                    return asyncClient;
+                }
+                classes = this.getClass().getClassLoader().loadClass(serviceInterface).getClasses();
+            } catch (ClassNotFoundException e) {
+                throw new IllegalArgumentException("cant find the class :" + serviceInterface);
+            }
+        } else {
+            if (null != genericAsyncClient) {
+                return genericAsyncClient;
+            }
+            classes = GenericService.class.getClasses();
+        }
+        for (Class c : classes) {
+            if (c.isMemberClass() && !c.isInterface() && c.getSimpleName().equals(ASYNC_CLIENT)) {
+                if (!generic) {
+                    genericAsyncClient = c;
+                } else {
+                    asyncClient = c;
+                }
+                return c;
+            }
+        }
+        throw new IllegalArgumentException("serviceInterface must contain Sub Class of AsyncClient");
+    }
+
+    @Override
+    public boolean isSingleton() {
+        return true;
+    }
+    @Override
+    public void () {
+
+    }
 }
