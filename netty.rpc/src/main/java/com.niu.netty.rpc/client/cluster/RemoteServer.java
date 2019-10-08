@@ -26,8 +26,8 @@ public class RemoteServer {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass () != o.getClass ()) return false;
+        if (this == o) {return true;}
+        if (o == null || getClass () != o.getClass ()) {return false;}
         RemoteServer that = (RemoteServer) o;
         return weight == that.weight &&
                 isEnable == that.isEnable &&

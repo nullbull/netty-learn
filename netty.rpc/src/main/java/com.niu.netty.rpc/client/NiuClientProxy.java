@@ -2,14 +2,22 @@ package com.niu.netty.rpc.client;
 
 import com.niu.netty.rpc.client.cluster.ILoadBalancer;
 import com.niu.netty.rpc.client.cluster.Icluster;
+import com.niu.netty.rpc.client.cluster.impl.DirectClisterImpl;
+import com.niu.netty.rpc.client.cluster.impl.RandomLoadBalancer;
 import com.niu.netty.rpc.client.invoker.LocalMockInterceptor;
 import com.niu.netty.rpc.generic.GenericService;
+import com.niu.netty.rpc.protol.NiuBinaryProtocol;
+import com.niu.netty.rpc.transport.TNiuFramedTransport;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.pool2.impl.AbandonedConfig;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
+import org.apache.thrift.TProcessorFactory;
 import org.apache.thrift.async.TAsyncClientManager;
+import org.apache.thrift.protocol.TProtocol;
+import org.apache.thrift.transport.TNonblockingTransport;
+import org.apache.thrift.transport.TTransport;
 import org.springframework.aop.framework.ProxyFactory;
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.FactoryBean;
@@ -17,8 +25,12 @@ import org.springframework.beans.factory.InitializingBean;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;
 
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 /**
  * @author: niuzhenhao
@@ -169,6 +181,12 @@ public class NiuClientProxy implements FactoryBean<Object>, ApplicationContextAw
             setNiuServerProxy(pf.getProxy());
             return;
         }
+        genericObjectPoolConfig = getGenericObjectPoolConfig();
+        abandonedConfig = getAbandonedConfig();
+
+        if (!StringUtils.isEmpty(serverIPPorts)) {
+            icluster = new DirectClisterImpl(serverIPPorts, null == loadBalancer ? new RandomLoadBalancer() : loadBalancer, serviceInterface, async, connectionTimeout, readTimeout, genericObjectPoolConfig, abandonedConfig);
+        }
     }
 
     @Override
@@ -318,8 +336,77 @@ public class NiuClientProxy implements FactoryBean<Object>, ApplicationContextAw
     public boolean isSingleton() {
         return true;
     }
-    @Override
-    public void () {
 
+    private Constructor<?> synConstructor;
+
+    private Constructor<?> asynConstructor;
+
+    public Object getInterfaceClientInstance(TTransport socket, String server)  {
+        if (!async) {
+            Class<?> clazz = getSynClientClass();
+            try {
+                if (null == synConstructor) {
+                    synConstructor = clazz.getDeclaredConstructor(TProtocol.class);
+                }
+                TTransport tTransport = new TNiuFramedTransport(socket, maxLength);
+                if (this.getPrivateKey() != null && null != this.getPublicKey()) {
+                    ((TNiuFramedTransport) tTransport).setRsa((byte) 1);
+                    ((TNiuFramedTransport) tTransport).setPrivateKey(this.getPrivateKey());
+                    ((TNiuFramedTransport) tTransport).setPublicKey(this.getPublicKey());
+                }
+                TProtocol protocol = new NiuBinaryProtocol(tTransport);
+                ((NiuBinaryProtocol) protocol).setGeneric(generic);
+                return synConstructor.newInstance(protocol);
+            } catch (NoSuchMethodException e) {
+                log.error ( "the clazz can't find the Constructor with TProtocol.class" );
+            } catch (InstantiationException e) {
+                log.error ( "get InstantiationException", e );
+            } catch (IllegalAccessException e) {
+                log.error ( "get IllegalAccessException", e );
+            } catch (InvocationTargetException e) {
+                log.error ( "get InvocationTargetException", e );
+            }
+        } else {
+            if (null == asyncClientManagerList) {
+                synchronized (this) {
+                    if (null == asyncClientManagerList) {
+                        asyncClientManagerList = new ArrayList<>();
+                        for (int i = 0; i < asyncSelectorThreadCount; i++) {
+                            try {
+                                asyncClientManagerList.add(new TAsyncClientManager());
+                                countDownLatch.countDown();
+                            }  catch (Exception e) {
+                                e.printStackTrace();
+                            }
+                        }
+                    }
+                }
+            }
+            if (countDownLatch.getCount() > 0) {
+                try {
+                    countDownLatch.await(5, TimeUnit.SECONDS);
+                } catch (InterruptedException e) {
+                    log.warn ( "InterruptedException at wait  for other add TAsyncClientManager class:"+serviceInterface, e );
+                }
+            }
+            Class<?> clazz = getAsyncClientClass();
+            if (null == asynConstructor) {
+                try {
+                    asynConstructor = clazz.getDeclaredConstructor(TProcessorFactory.class, TAsyncClientManager.class, TNonblockingTransport.class);
+                } catch (NoSuchMethodException e) {
+                    e.printStackTrace();
+                }
+            }
+            try {
+                return asynConstructor.newInstance(new NiuBinaryProtocol.Factory(generic), asyncClientManagerList.get(socket.hashCode() % asyncSelectorThreadCount), socket);
+            } catch (InstantiationException e) {
+                log.error ( "get InstantiationException", e );
+            } catch (IllegalAccessException e) {
+                log.error ( "get IllegalAccessException", e );
+            } catch (InvocationTargetException e) {
+                log.error ( "get InvocationTargetException", e );
+            }
+         }
+        return null;
     }
 }
