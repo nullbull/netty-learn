@@ -1,5 +1,6 @@
 package com.niu.netty.rpc.server;
 
+import com.niu.netty.rpc.netty.NettyServer;
 import com.niu.netty.rpc.server.config.AbstractNiuServerPublisher;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.FactoryBean;
@@ -34,7 +35,7 @@ public class NiuServerPublisher extends AbstractNiuServerPublisher implements Fa
     public void afterPropertiesSet() throws Exception {
         this.checkParam();
         if (NETTY.endsWith(this.serverType.toLowerCase().trim())) {
-            niuServer = new NettyServer
+            niuServer = new NettyServer(this);
         }
     }
 }

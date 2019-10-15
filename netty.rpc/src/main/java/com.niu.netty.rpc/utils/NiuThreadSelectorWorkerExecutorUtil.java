@@ -13,8 +13,8 @@ import java.util.concurrent.TimeUnit;
  * @desc
  */
 public class NiuThreadSelectorWorkerExecutorUtil {
-    public static ThreadPoolExecutor getWorkerExecutor(int threadcCount, NiuDefaultThreadFactory niuDefaultThreadFactory) {
-        ThreadPoolExecutor executor = new ThreadPoolExecutor(threadcCount, threadcCount, 30L, TimeUnit.SECONDS,
+    public static ThreadPoolExecutor getWorkerExecutor(int threadCount, NiuDefaultThreadFactory niuDefaultThreadFactory) {
+        ThreadPoolExecutor executor = new ThreadPoolExecutor(threadCount, threadCount, 30L, TimeUnit.SECONDS,
                 new SynchronousQueue<Runnable>(), niuDefaultThreadFactory);
         executor.prestartAllCoreThreads();
         return executor;
