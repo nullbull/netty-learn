@@ -469,4 +469,5 @@ public class NiuClientProxy implements FactoryBean<Object>, ApplicationContextAw
     public void destory() {
         if (icluster != null) icluster.destroy();
     }
+
 }
