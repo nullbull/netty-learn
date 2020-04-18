@@ -1,5 +1,6 @@
 package com.niu.netty.rpc.netty.initializer;
 
+import com.niu.netty.rpc.netty.handler.NiuDecoder;
 import com.niu.netty.rpc.server.config.AbstractNiuServerPublisher;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.socket.SocketChannel;

@@ -1,5 +1,6 @@
 package com.niu.netty.rpc.netty;
 
+import com.niu.netty.rpc.netty.initializer.NettyServerInitiator;
 import com.niu.netty.rpc.server.INiuServer;
 import com.niu.netty.rpc.server.NiuDefaultThreadFactory;
 import com.niu.netty.rpc.server.config.AbstractNiuServerPublisher;
@@ -49,7 +50,7 @@ public class NettyServer implements INiuServer {
             ServerBootstrap b = new ServerBootstrap();
             b.group(bossGroup, workGroup).channel(workGroup instanceof EpollEventLoopGroup ? EpollServerSocketChannel.class : NioServerSocketChannel.class)
                     .handler(new LoggingHandler(LogLevel.INFO))
-                    .childHandler(new NettySI)
+                    .childHandler(new NettyServerInitiator(serverPublisher, executorService))
         }
     }
 

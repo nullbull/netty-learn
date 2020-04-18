@@ -360,6 +360,7 @@ public class TNiuFramedTransport extends TTransport {
         buf[3] = (byte) (0xff & (frameSize));
     }
 
+    //求长度
     public static final int decodeFrameSize(final byte[] buf) {
         return
                 ((buf[0] & 0xff) << 24) |
