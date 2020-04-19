@@ -4,6 +4,7 @@ package com.niu.netty.rpc.transport;
 import com.niu.netty.rpc.exceptions.OutMaxLengthException;
 import com.niu.netty.rpc.exceptions.RSAException;
 import com.niu.netty.rpc.utils.NiuRsaUtil;
+import lombok.Data;
 import org.apache.thrift.TByteArrayOutputStream;
 import org.apache.thrift.transport.TMemoryInputTransport;
 import org.apache.thrift.transport.TTransport;
@@ -13,6 +14,7 @@ import org.apache.thrift.transport.TTransportFactory;
 import java.util.Arrays;
 
 
+@Data
 public class TNiuFramedTransport extends TTransport {
 
     protected static final int DEFAULT_MAX_LENGTH = 16384000;
@@ -32,6 +34,10 @@ public class TNiuFramedTransport extends TTransport {
     private byte heartbeat = (byte) 1;
     private byte rsa = (byte) 0;
     private String privateKey;
+    private String publicKey;
+    private byte zip = (byte) 0;
+    private boolean ifUserProtocol = true;
+
 
     public byte getRsa() {
         return rsa;
@@ -57,9 +63,6 @@ public class TNiuFramedTransport extends TTransport {
         return zip;
     }
 
-    private String publicKey;
-    private byte zip = (byte) 0;
-    private boolean ifUserProtocol = true;
 
     public boolean isIfUserProtocol() {
         return ifUserProtocol;
