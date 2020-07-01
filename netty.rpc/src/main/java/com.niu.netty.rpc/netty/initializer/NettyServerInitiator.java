@@ -1,6 +1,8 @@
 package com.niu.netty.rpc.netty.initializer;
 
 import com.niu.netty.rpc.netty.handler.NiuDecoder;
+import com.niu.netty.rpc.netty.handler.NiuEncoder;
+import com.niu.netty.rpc.netty.handler.NiuHandler;
 import com.niu.netty.rpc.server.config.AbstractNiuServerPublisher;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.socket.SocketChannel;
@@ -23,6 +25,6 @@ public class NettyServerInitiator extends ChannelInitializer<SocketChannel> {
     protected void initChannel(SocketChannel socketChannel) throws Exception {
         socketChannel.pipeline().addLast("decoder", new NiuDecoder());
         socketChannel.pipeline().addLast("encoder", new NiuEncoder());
-        socketChannel.pipeline().addLast("com.niu.netty.rpc/netty/handler", new NiuHandler(serverPublisher, executorService))
+        socketChannel.pipeline().addLast("com.niu.netty.rpc/netty/handler", new NiuHandler(serverPublisher, executorService));
     }
 }

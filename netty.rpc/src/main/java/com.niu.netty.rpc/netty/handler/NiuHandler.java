@@ -5,6 +5,7 @@ import com.niu.netty.rpc.heartbeat.impl.HeartbeatServiceImpl;
 import com.niu.netty.rpc.heartbeat.service.HeartbeatService;
 import com.niu.netty.rpc.protol.NiuBinaryProtocol;
 import com.niu.netty.rpc.protol.NiuTrace;
+import com.niu.netty.rpc.server.config.AbstractNiuServerPublisher;
 import com.niu.netty.rpc.server.domain.ErrorType;
 import com.niu.netty.rpc.transport.TNiuFramedTransport;
 import com.niu.netty.rpc.utils.IPUtil;
@@ -49,6 +50,16 @@ public class NiuHandler extends SimpleChannelInboundHandler<ByteBuf> {
     private String className;
 
     private int maxLength;
+
+    public NiuHandler(AbstractNiuServerPublisher serverPublisher, ExecutorService executorService) {
+        this.executorService = executorService;
+        this.privateKey = serverPublisher.getPrivateKey();
+        this.publicKey = serverPublisher.getPublicKey();
+        this.className = serverPublisher.getServiceInterface().getName();
+        this.tProcessor = serverPublisher.getTProcessor();
+        this.maxLength = serverPublisher.getMaxLength();
+        this.genericTprocessor = serverPublisher.getGenericTProcessor();
+    }
 
 
     @Override

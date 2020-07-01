@@ -38,7 +38,7 @@ public class NiuAnnotationBean implements DisposableBean, BeanFactoryPostProcess
             clientProxy.destory();
         }
         for (NiuServerPublisher publisher : niuServerPublishers) {
-            publisher.
+            publisher
         }
     }
 

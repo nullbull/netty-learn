@@ -15,7 +15,7 @@ import org.springframework.context.ApplicationContextAware;
 @Slf4j
 public class NiuServerPublisher extends AbstractNiuServerPublisher implements FactoryBean<Object>, ApplicationContextAware, InitializingBean {
     private static final String NETTY = "com.niu.netty.rpc/netty";
-    private static final String THRIFT = "thrift";
+    private static final String THRIFT = "com.niu.netty.rpc/thrift";
 
     @Override
     public Object getObject() throws Exception {
@@ -37,7 +37,7 @@ public class NiuServerPublisher extends AbstractNiuServerPublisher implements Fa
         if (NETTY.endsWith(this.serverType.toLowerCase().trim())) {
             niuServer = new NettyServer(this);
         } else if (THRIFT.equals(this.serverType.toLowerCase().trim())) {
-            niuServer = new Thrift
+            niuServer = new Thri
         }
     }
 }
