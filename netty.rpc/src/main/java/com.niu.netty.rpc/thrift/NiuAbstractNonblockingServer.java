@@ -1,5 +1,6 @@
 package com.niu.netty.rpc.thrift;
 
+import com.niu.netty.rpc.transport.TNiuFramedTransport;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.thrift.TByteArrayOutputStream;
 import org.apache.thrift.TProcessor;
@@ -11,9 +12,12 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
+import java.nio.channels.spi.SelectorProvider;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
+
+import static org.apache.thrift.transport.TFramedTransport.encodeFrameSize;
 
 /**
  * @author niuzhenhao
@@ -77,7 +81,57 @@ public abstract class NiuAbstractNonblockingServer extends TServer {
 
         protected final Set<FrameBuffer> selectInterestChanges = new HashSet<>();
         //todo
-    }
+
+        public AbstractSelectThread() throws IOException {
+            this.selector = SelectorProvider.provider().openSelector();
+        }
+        public void wakeUpSelector() {
+            selector.wakeup();
+        }
+        public void requestSelectInterestChange(FrameBuffer frameBuffer) {
+            synchronized (selectInterestChanges) {
+                selectInterestChanges.add(frameBuffer);
+            }
+            selector.wakeup();
+        }
+
+        protected void processInterestChanges() {
+            synchronized (selectInterestChanges) {
+                for (FrameBuffer fb : selectInterestChanges) {
+                    fb.changeSelectInterests();
+                }
+                selectInterestChanges.clear();
+            }
+        }
+
+        protected void handleRead(SelectionKey key) {
+            FrameBuffer buffer = (FrameBuffer) key.attachment();
+            if (!buffer.read()) {
+                cleanUpSelectionKey(key);
+                return;
+            }
+            if (buffer.isFrameFullyRead()) {
+                if (!requestInvoke(buffer)) {
+                    cleanUpSelectionKey(key);
+                }
+            }
+        }
+
+        protected void handleWrite(SelectionKey key) {
+            FrameBuffer buffer = (FrameBuffer) key.attachment();
+            if (!buffer.write()) {
+                cleanUpSelectionKey(key);
+            }
+        }
+
+        protected void cleanUpSelectionKey(SelectionKey key) {
+            FrameBuffer buffer = (FrameBuffer) key.attachment();
+            if (buffer != null) {
+                buffer.close();
+            }
+            key.cancel();
+        }
+     }
     private enum FrameBufferState {
         READING_FRAME_SIZE,
         READING_FRAME,
@@ -255,6 +309,53 @@ public abstract class NiuAbstractNonblockingServer extends TServer {
                 this.selectThread_.requestSelectInterestChange(this);
             }
         }
+
+        public void invoke() {
+            try {
+                TTransport inTrans =
+            }
+        }
+
+        private TTransport getInputTransport() {
+            byte[] body = buffer_.array();
+
+            byte[] len = new byte[4];
+            encodeFrameSize(body.length, len);
+            byte[] b = new byte[body.length + 4];
+
+            System.arraycopy(len, 0, b, 0, 4);
+            System.arraycopy(body, 0, b, 4, body.length);
+            TMessage tMessage;
+            String genericMethodName;
+            if (b[4] == TNiuFramedTransport.first && b[5] == TNiuFramedTransport.second) {
+                NiuMessage niuMessage = getNiuTMessage();
+                tMessage = niuMessage.gettMessage();
+                generic = niuMessage.isGeneric();
+                thriftNative = niuMessage.isThriftNative();
+                genericMethodName = niuMessage.getGenericMethodName();
+            }
+        }
+
+        private NiuMessage getNiuTMessage(byte[] b) {
+            byte[] buff = new byte[b.length - 4];
+            System.arraycopy(b, 4, buff, 0, buff.length);
+
+            int size = buff.length;
+            byte[] request = new byte[size - 6];
+            byte[] head = new byte[6];
+            System.arraycopy(buff, 6, request, 0, size - 6);
+            System.arraycopy(buff, 0, head, 0,  6);
+
+            if (head[4] == (byte) 1) {
+                byte[] signLenByte = new byte[4];
+                System.arraycopy(buff, 6, signLenByte, 0, 4);
+                int signLen = TNiuFramedTransport.decodeFrameSize(signLenByte);
+                System.arraycopy();
+            }
+
+        }
+
+
 
         private class NiuMessage {
             private TMessage tMessage;
