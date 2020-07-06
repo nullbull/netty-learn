@@ -1,18 +1,26 @@
 package com.niu.netty.rpc.thrift;
 
+import com.niu.netty.rpc.exceptions.RSAException;
+import com.niu.netty.rpc.protol.NiuBinaryProtocol;
 import com.niu.netty.rpc.transport.TNiuFramedTransport;
+import com.niu.netty.rpc.utils.NiuRsaUtil;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.thrift.TByteArrayOutputStream;
 import org.apache.thrift.TProcessor;
 import org.apache.thrift.protocol.TMessage;
+import org.apache.thrift.protocol.TProtocol;
 import org.apache.thrift.server.TServer;
 import org.apache.thrift.transport.*;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.spi.SelectorProvider;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
@@ -312,7 +320,8 @@ public abstract class NiuAbstractNonblockingServer extends TServer {
 
         public void invoke() {
             try {
-                TTransport inTrans =
+                TTransport inTrans = getInputTransport();
+                TTransport outTrans = getOutputTransport();
             }
         }
 
@@ -328,12 +337,33 @@ public abstract class NiuAbstractNonblockingServer extends TServer {
             TMessage tMessage;
             String genericMethodName;
             if (b[4] == TNiuFramedTransport.first && b[5] == TNiuFramedTransport.second) {
-                NiuMessage niuMessage = getNiuTMessage();
+                NiuMessage niuMessage = getNiuTMessage(b);
+                tMessage = niuMessage.gettMessage();
+                generic = niuMessage.isGeneric();
+                thriftNative = niuMessage.isThriftNative();
+                genericMethodName = niuMessage.getGenericMethodName();
+            } else {
+                NiuMessage niuMessage = getTMessage(b);
                 tMessage = niuMessage.gettMessage();
                 generic = niuMessage.isGeneric();
                 thriftNative = niuMessage.isThriftNative();
                 genericMethodName = niuMessage.getGenericMethodName();
             }
+            methodName = generic ? genericMethodName : tMessage.name;
+            boolean isRsa = (b[4] == TNiuFramedTransport.first && b[5] == TNiuFramedTransport.second);
+            if (this.privateKey != null && this.publicKey != null) {
+                if (b[8] != (byte) 1 || !isRsa) {
+                    throw  new RSAException("thrift server rsa error");
+                }
+            }
+            ByteArrayInputStream inputStream = new ByteArrayInputStream(b);
+            TIOStreamTransport tioStreamTransportInput = new TIOStreamTransport(inputStream);
+            TNiuFramedTransport inTransport = new TNiuFramedTransport(tioStreamTransportInput);
+            if (isRsa && b[8] == (byte)1) {
+                inTransport.setPrivateKey(this.privateKey);
+                inTransport.setPublicKey(this.publicKey);
+            }
+            return inTransport;
         }
 
         private NiuMessage getNiuTMessage(byte[] b) {
@@ -350,8 +380,70 @@ public abstract class NiuAbstractNonblockingServer extends TServer {
                 byte[] signLenByte = new byte[4];
                 System.arraycopy(buff, 6, signLenByte, 0, 4);
                 int signLen = TNiuFramedTransport.decodeFrameSize(signLenByte);
-                System.arraycopy();
+                byte[] signByte = new byte[signLen];
+                System.arraycopy(buff, 10, signByte, 0, signLen);
+                String sign = "";
+                try {
+                    sign = new String(signByte, StandardCharsets.UTF_8);
+                } catch (Exception e) {
+                    return new NiuMessage(new TMessage(), false, StringUtils.EMPTY, false);
+                }
+                byte[] rsaBody = new byte[size - 10 - signLen];
+                System.arraycopy(buff, 10 + signLen, rsaBody, 0, size - 10 - signLen);
+
+                try {
+                    if (!NiuRsaUtil.verify(rsaBody, publicKey, sign)) {
+                        return new NiuMessage(new TMessage(), false, StringUtils.EMPTY, false);
+                    }
+                    request = NiuRsaUtil.decryptByPrivateKey(rsaBody, privateKey);
+                } catch (Exception e) {
+                    return new NiuMessage(new TMessage(), false, StringUtils.EMPTY, false);
+                }
             }
+
+            TMessage tMessage;
+            boolean generic;
+            String genericMethodName;
+            boolean thriftNative;
+
+            ByteArrayInputStream inputStream = new ByteArrayInputStream(request);
+            TIOStreamTransport tioStreamTransportInput = new TIOStreamTransport(inputStream);
+            try {
+                NiuBinaryProtocol tBinaryProtocol = new NiuBinaryProtocol(tioStreamTransportInput, true);
+                tMessage = tBinaryProtocol.readMessageBegin();
+                generic = tBinaryProtocol.isGeneric();
+                genericMethodName = tBinaryProtocol.getGenericMethodName();
+                thriftNative = tBinaryProtocol.isThriftNative();
+            } catch (Exception e) {
+                return new NiuMessage(new TMessage(), false, StringUtils.EMPTY, false);
+            }
+            return new NiuMessage(tMessage, generic, genericMethodName, thriftNative);
+        }
+
+        private TTransport getOutputTransport() {
+            byte[] body = buffer_.array();
+
+            byte[] len =
+        }
+
+        private NiuMessage getTMessage(byte[] b) {
+            byte[] buff = new byte[b.length - 4];
+            System.arraycopy(b, 4, buff, 0, buff.length);
+            ByteArrayInputStream inputStream = new ByteArrayInputStream(buff);
+            TIOStreamTransport tioStreamTransportInput = new TIOStreamTransport(inputStream);
+            NiuBinaryProtocol tBinaryProtocol = new NiuBinaryProtocol(tioStreamTransportInput, true);
+            TMessage tMessage;
+            String genericMethodName;
+            boolean thriftNative;
+            try {
+                tMessage = tBinaryProtocol.readMessageBegin();
+                generic = tBinaryProtocol.isGeneric();
+                genericMethodName = tBinaryProtocol.getGenericMethodName();
+                thriftNative = tBinaryProtocol.isThriftNative();
+            } catch (Exception e) {
+                return new NiuMessage(new TMessage(), false, StringUtils.EMPTY, false);
+            }
+            return new NiuMessage(tMessage, generic, genericMethodName, thriftNative);
 
         }
 
@@ -403,6 +495,9 @@ public abstract class NiuAbstractNonblockingServer extends TServer {
                 this.generic = generic;
             }
         }
+
+
+
 
 
     }

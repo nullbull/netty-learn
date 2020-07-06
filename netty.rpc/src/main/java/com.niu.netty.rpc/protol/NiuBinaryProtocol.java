@@ -95,6 +95,7 @@ public class NiuBinaryProtocol extends TProtocol {
         this.strictWrite_ = strictWrite;
     }
 
+    @Override
     public void writeMessageBegin(TMessage message) throws TException {
         if (this.strictWrite_) {
             int version = -2147418112 | message.type;
