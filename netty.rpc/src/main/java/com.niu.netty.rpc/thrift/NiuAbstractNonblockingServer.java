@@ -1,17 +1,22 @@
 package com.niu.netty.rpc.thrift;
 
 import com.niu.netty.rpc.exceptions.RSAException;
+import com.niu.netty.rpc.heartbeat.impl.HeartbeatServiceImpl;
+import com.niu.netty.rpc.heartbeat.service.HeartbeatService;
 import com.niu.netty.rpc.protol.NiuBinaryProtocol;
+import com.niu.netty.rpc.server.domain.ErrorType;
 import com.niu.netty.rpc.transport.TNiuFramedTransport;
+import com.niu.netty.rpc.utils.IPUtil;
+import com.niu.netty.rpc.utils.NiuExceptionUtil;
 import com.niu.netty.rpc.utils.NiuRsaUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.thrift.TByteArrayOutputStream;
-import org.apache.thrift.TProcessor;
-import org.apache.thrift.protocol.TMessage;
-import org.apache.thrift.protocol.TProtocol;
+import org.apache.thrift.*;
+import org.apache.thrift.protocol.*;
 import org.apache.thrift.server.TServer;
 import org.apache.thrift.transport.*;
+import org.apache.zookeeper.Transaction;
+import org.omg.PortableInterceptor.SUCCESSFUL;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -21,6 +26,7 @@ import java.nio.channels.Selector;
 import java.nio.channels.spi.SelectorProvider;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.text.MessageFormat;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
@@ -322,7 +328,138 @@ public abstract class NiuAbstractNonblockingServer extends TServer {
             try {
                 TTransport inTrans = getInputTransport();
                 TTransport outTrans = getOutputTransport();
+                TProtocol inProt = inputProtocolFactory_.getProtocol(inTrans);
+                TProtocol outProt = outputProtocolFactory_.getProtocol(outTrans);
+                ((NiuBinaryProtocol) inProt).setThriftNative(thriftNative);
+                ((NiuBinaryProtocol) outProt).setThriftNative(thriftNative);
+                byte[] body = buffer_.array();
+                //处理心跳检测
+                if (body[0] == TNiuFramedTransport.first && body[1] == TNiuFramedTransport.second && body[3] == ((byte)2)) {
+                    TProcessor tProcessorHeartBeat = new HeartbeatService.Processor<>(new HeartbeatServiceImpl());
+                    ((TNiuFramedTransport) outTrans).setHeartbeat((byte)2);
+                    tProcessorHeartBeat.process(inProt, outProt);
+                } else {
+                    try {
+                        try {
+                            if (!generic) {
+                                processorFactory_.getProcessor(inTrans).process(inProt, outProt);
+                            } else {
+                                tGenericProcessor.process(inProt, outProt);
+                            }
+                        } catch (Exception e) {
+                            byte[] _body = buffer_.array();
+                            byte[] len = new byte[4];
+                            encodeFrameSize(_body.length, len);
+                            byte[] _b = new byte[_body.length + 4];
+                            System.arraycopy(len, 0, _b, 0, 4);
+                            System.arraycopy(_body, 0, _b, 4, _b.length);
+                            handlerException(_b, e, ErrorType.APPLICATION, privateKey, publicKey);
+                        }
+                    } catch (Exception e) {
+                        throw e;
+                    }
+                }
+                responseReady();
+                return;
+            } catch (TException e) {
+                log.warn("Exception while invoking!", e);
+            } catch (Throwable t) {
+                log.error("Unexpected throwable while invoking!", t);
             }
+            state_ = FrameBufferState.AWAITING_CLOSE;
+            requestSelectInterestChange();
+        }
+
+        public void handlerException(byte[] b, Exception e, ErrorType type, String privateKey, String publicKey) throws TException {
+
+            String serverIp = IPUtil.getIPV4();
+            String exceptionMessage = NiuExceptionUtil.getExceptionInfo(e);
+            String value = MessageFormat.format("error from server: {0}  invoke error : {1}", serverIp, exceptionMessage);
+            boolean ifUserProtocol;
+            if (b[4] == TNiuFramedTransport.first && b[5] == TNiuFramedTransport.second) {
+                ifUserProtocol = true;
+            } else {
+                ifUserProtocol = false;
+            }
+            ByteArrayInputStream inputStream  = new ByteArrayInputStream(b);
+            response_ = new TByteArrayOutputStream();
+
+            TIOStreamTransport tioStreamTransportInput = new TIOStreamTransport(inputStream);
+            TIOStreamTransport tioStreamTransportOutput = new TIOStreamTransport(response_);
+
+            TNiuFramedTransport inTransport = new TNiuFramedTransport(tioStreamTransportInput);
+            TNiuFramedTransport outTransport = new TNiuFramedTransport(tioStreamTransportOutput);
+
+            NiuBinaryProtocol.Factory tProcessorFactory = new NiuBinaryProtocol.Factory();
+            tProcessorFactory.setThriftNative(thriftNative);
+            TProtocol in = tProcessorFactory.getProtocol(inTransport);
+            TProtocol out = tProcessorFactory.getProtocol(outTransport);
+
+
+            TMessage tMessage= new TMessage("", TMessageType.EXCEPTION, -1);
+            if (ifUserProtocol) {
+                if (b[8] == (byte) 1) {
+                    if (!(e instanceof RSAException)) {
+                        inTransport.setPrivateKey(privateKey);
+                        inTransport.setPublicKey(publicKey);
+
+                        outTransport.setRsa((byte) 1);
+                        outTransport.setPrivateKey(privateKey);
+                        outTransport.setPublicKey(publicKey);
+                    } else {
+                        try {
+                            TApplicationException exception = new TApplicationException(6699, value);
+                            out.writeMessageBegin(tMessage);
+                            exception.write(out);
+                            out.writeMessageEnd();
+                            out.getTransport().flush();
+                            return;
+                        } catch (Exception e2) {
+                            log.error(e2.getMessage(), e2);
+                            throw e2;
+                        }
+                    }
+                } else {
+                    if (e instanceof RSAException) {
+                        try {
+                            TApplicationException exception = new TApplicationException(6699, value);
+                            out.writeMessageBegin(tMessage);
+                            exception.write(out);
+                            out.writeMessageEnd();
+                            out.getTransport().flush();
+                            return;
+                        } catch (Exception e2) {
+                            log.error(e2.getMessage(), e2);
+                            throw e2;
+                        }
+                    }
+                }
+            }
+            try {
+                TMessage message = in.readMessageBegin();
+                TProtocolUtil.skip(in, TType.STRUCT);
+                in.readMessageEnd();
+
+                TApplicationException tApplicationException = null;
+                switch (type) {
+                    case THREAD:
+                        tApplicationException = new TApplicationException(6666, value);
+                        break;
+                    case APPLICATION:
+                        tApplicationException = new TApplicationException(TApplicationException.INTERNAL_ERROR, value);
+                        break;
+                }
+
+                out.writeMessageBegin(new TMessage(message.name, TMessageType.EXCEPTION, message.seqid));
+                tApplicationException.write(out);
+                out.writeMessageEnd();
+                out.getTransport().flush();
+                log.info("handlerException:" + tApplicationException.getType() + ":" + value);
+            } catch (Exception e1) {
+                log.error("unknown Exception:" + type + ":" + value, e1);
+                throw e1;
+            }
+
         }
 
         private TTransport getInputTransport() {
@@ -423,7 +560,25 @@ public abstract class NiuAbstractNonblockingServer extends TServer {
         private TTransport getOutputTransport() {
             byte[] body = buffer_.array();
 
-            byte[] len =
+            byte[] len = new byte[4];
+            encodeFrameSize(body.length, len);
+            byte[] b = new byte[body.length + 4];
+
+            System.arraycopy(len, 0, b, 0, 4);
+            System.arraycopy(body, 0, b, 0, body.length);
+
+            boolean ifUserProtocol = b[4] == TNiuFramedTransport.first && b[5] == TNiuFramedTransport.second;
+
+            response_ = new TByteArrayOutputStream();
+            TIOStreamTransport tioStreamTransportOutput = new TIOStreamTransport(response_);
+            TNiuFramedTransport outTransport = new TNiuFramedTransport(tioStreamTransportOutput, 2048000, ifUserProtocol);
+
+            if (ifUserProtocol && b[8] == (byte) 1) {
+                outTransport.setRsa((byte) 1);
+                outTransport.setPrivateKey(this.privateKey);
+                outTransport.setPublicKey(this.publicKey);
+            }
+            return outTransport;
         }
 
         private NiuMessage getTMessage(byte[] b) {
