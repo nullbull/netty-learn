@@ -183,8 +183,7 @@ public abstract class NiuAbstractNonblockingServer extends TServer {
                            String privateKey,
                            String publicKey,
                            String serviceName,
-                           TProcessor tGenericProcessor,
-                           boolean cat) {
+                           TProcessor tGenericProcessor) {
             this(trans, selectionKey, selectThread);
             this.privateKey = privateKey;
             this.publicKey = publicKey;
