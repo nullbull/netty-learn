@@ -88,6 +88,7 @@ public abstract class NiuAbstractNonblockingServer extends TServer {
     protected void stopListenting() {
         serverTransport_.close();
     }
+
     protected abstract boolean requestInvoke(FrameBuffer frameBuffer);
 
     protected abstract class AbstractSelectThread extends Thread {
@@ -146,6 +147,7 @@ public abstract class NiuAbstractNonblockingServer extends TServer {
             key.cancel();
         }
      }
+
     private enum FrameBufferState {
         READING_FRAME_SIZE,
         READING_FRAME,

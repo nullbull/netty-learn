@@ -12,9 +12,11 @@ import org.apache.thrift.transport.TServerTransport;
 import java.io.IOException;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
+import java.nio.channels.spi.SelectorProvider;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.Set;
 import java.util.concurrent.*;
 
 /**
@@ -154,16 +156,51 @@ public class NiuThreadSelectorServer extends NiuAbstractNonblockingServer {
         this.tGenericProcessor = tGenericProcessor;
     }
 
-    //todo 2020-07-13
     @Override
     protected boolean startThreads() {
-
-        return false;
+        try {
+            for (int i = 0; i < args.selectorThreads; ++i) {
+                selectorThreads.add(new SelectorThread(args.acceptQueueSizePerThread));
+            }
+            acceptThread = new AcceptThread((TNonblockingServerTransport) serverTransport_, new SelectorThreadLoadBalancer(selectorThreads));
+            stopped = false;
+            for (SelectorThread thread : selectorThreads) {
+                thread.start();
+            }
+            acceptThread.start();
+            return true;
+        } catch (IOException e) {
+            log.error("Failed to start threads!", e);
+            return false;
+        }
     }
 
     @Override
     protected void waitForShutdown() {
+        try {
+            joinThreads();
+        } catch (InterruptedException e) {
+            log.error("Interrupted while joining threads!", e);
+        }
+        gracefullyShutdownInvokerPool();
+    }
 
+    protected void joinThreads() throws InterruptedException {
+        acceptThread.join();
+        for (SelectorThread thread : selectorThreads) {
+            thread.join();
+        }
+    }
+
+
+    @Override
+    public void stop() {
+        stopped = true;
+        stopListenting();
+
+        if (acceptThread != null) {
+            acceptThread.
+        }
     }
 
     @Override
@@ -175,6 +212,21 @@ public class NiuThreadSelectorServer extends NiuAbstractNonblockingServer {
     public void serve() {
 
     }
+    protected void gracefullyShutdownInvokerPool() {
+        invoker.shutdown();
+        long timeoutMS = args.stopTimeoutUnit.toMillis(args.stopTimeoutVal);
+        long now = System.currentTimeMillis();
+        while (timeoutMS >= 0) {
+            try {
+                invoker.awaitTermination(timeoutMS, TimeUnit.MILLISECONDS);
+                break;
+            } catch (InterruptedException ix) {
+                long newNow = System.currentTimeMillis();
+                timeoutMS -= (newNow - now);
+                now = newNow;
+            }
+        }
+    }
 
     protected class AcceptThread extends Thread {
 
@@ -184,7 +236,32 @@ public class NiuThreadSelectorServer extends NiuAbstractNonblockingServer {
 
         private final SelectorThreadLoadBalancer threadChooser;
 
-        public
+        public AcceptThread(TNonblockingServerTransport serverTransport, SelectorThreadLoadBalancer threadChooser) throws IOException {
+            this.serverTransport = serverTransport;
+            this.threadChooser = threadChooser;
+            this.acceptSelector = SelectorProvider.provider().openSelector();
+            this.serverTransport.registerSelector(acceptSelector);
+        }
+
+        @Override
+        public void run() {
+            try {
+                while (!stopped) {
+
+                }
+            }
+        }
+        public void wakeupSelector() {
+            acceptSelector.wakeup();
+        }
+
+        public void select() {
+            try {
+                acceptSelector.select();
+
+                Iterator<SelectionKey> selectedKeys = acceptSelector.selectedKeys().iterator();
+            }
+        }
 
     }
 
