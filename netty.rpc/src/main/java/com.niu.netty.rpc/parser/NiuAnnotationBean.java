@@ -3,6 +3,7 @@ package com.niu.netty.rpc.parser;
 import com.niu.netty.rpc.annotation.NiuServer;
 import com.niu.netty.rpc.client.NiuClientProxy;
 import com.niu.netty.rpc.server.NiuServerPublisher;
+import org.springframework.aop.support.AopUtils;
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.BeanFactory;
 import org.springframework.beans.factory.BeanFactoryAware;
@@ -74,7 +75,7 @@ public class NiuAnnotationBean implements DisposableBean, BeanFactoryPostProcess
 
 
     @Override
-    public Object postProcessBeforeInitialization(Object object, String beanName) throws BeansException {
+    public Object postProcessBeforeInitialization(Object bean, String beanName) throws BeansException {
         if (!isMatchPackage(bean)) {
             return bean;
         }
@@ -82,6 +83,24 @@ public class NiuAnnotationBean implements DisposableBean, BeanFactoryPostProcess
 
 
         //todo 2020-07-16
+    }
+
+
+    private boolean isMatchPackage(Object bean) {
+        if (annotationPackages == null || annotationPackages.length == 0) {
+            return true;
+        }
+        Class clazz = bean.getClass();
+        if (isProxyBean(bean)) {
+            clazz = AopUtils.getTargetClass(bean);
+        }
+        String beanClassName = clazz.getName();
+        for (String pkg : annotationPackages) {
+            if (beanClassName.startsWith(pkg)) {
+                return true;
+            }
+        }
+        return false;
     }
 
 
