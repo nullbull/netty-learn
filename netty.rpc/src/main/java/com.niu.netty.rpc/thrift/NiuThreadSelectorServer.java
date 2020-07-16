@@ -1,22 +1,17 @@
 package com.niu.netty.rpc.thrift;
 
-import lombok.Data;
-import lombok.Getter;
-import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.thrift.TProcessor;
 import org.apache.thrift.transport.TNonblockingServerTransport;
 import org.apache.thrift.transport.TNonblockingTransport;
 import org.apache.thrift.transport.TServerTransport;
+import org.apache.thrift.transport.TTransportException;
 
 import java.io.IOException;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.spi.SelectorProvider;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.*;
 
 /**
@@ -27,11 +22,6 @@ import java.util.concurrent.*;
 @Slf4j
 public class NiuThreadSelectorServer extends NiuAbstractNonblockingServer {
 
-    public NiuThreadSelectorServer(AbstractNonblockingServerArgs args) {
-        super(args);
-    }
-
-    @Data
     public static class Args extends AbstractNonblockingServerArgs<Args> {
 
         private int selectorThreads = 2;
@@ -64,6 +54,27 @@ public class NiuThreadSelectorServer extends NiuAbstractNonblockingServer {
             return this;
         }
 
+        public Args executorService(ExecutorService executorService) {
+            this.executorService = executorService;
+            return this;
+        }
+
+        public Args acceptQueueSizePerThread(int acceptQueueSizePerThread) {
+            this.acceptQueueSizePerThread = acceptQueueSizePerThread;
+            return this;
+        }
+
+
+        public Args selectorThreads(int i) {
+            selectorThreads = i;
+            return this;
+        }
+
+        public Args workerThreads(int i ) {
+            workerThreads = i;
+            return this;
+        }
+
         public void validate() {
             if (selectorThreads <= 0) {
                 throw new IllegalArgumentException("selectorThreads must be positive.");
@@ -77,12 +88,40 @@ public class NiuThreadSelectorServer extends NiuAbstractNonblockingServer {
 
         }
 
+        public int getSelectorThreads() {
+            return selectorThreads;
+        }
+
+        public int getWorkerThreads() {
+            return workerThreads;
+        }
+
+        public int getStopTimeoutVal() {
+            return stopTimeoutVal;
+        }
+
+        public TimeUnit getStopTimeoutUnit() {
+            return stopTimeoutUnit;
+        }
+
+        public ExecutorService getExecutorService() {
+            return executorService;
+        }
+
+        public int getAcceptQueueSizePerThread() {
+            return acceptQueueSizePerThread;
+        }
+
+        public AcceptPolicy getAcceptPolicy() {
+            return acceptPolicy;
+        }
+
     }
     private volatile boolean stopped = true;
 
     private AcceptThread  acceptThread;
 
-    private final Set<SelectorThread> selectorThreads = new HashMap<>();
+    private final Set<SelectorThread> selectorThreads = new HashSet<>();
 
     private final ExecutorService invoker;
 
@@ -95,6 +134,13 @@ public class NiuThreadSelectorServer extends NiuAbstractNonblockingServer {
     private String serviceName;
 
     private TProcessor tGenericProcessor;
+
+    public NiuThreadSelectorServer(Args args) {
+        super(args);
+        args.validate();
+        invoker = args.executorService == null ? createDefaultExecutor(args) : args.executorService;
+        this.args = args;
+    }
 
     public boolean isStopped() {
         return stopped;
@@ -199,7 +245,14 @@ public class NiuThreadSelectorServer extends NiuAbstractNonblockingServer {
         stopListenting();
 
         if (acceptThread != null) {
-            acceptThread.
+            acceptThread.wakeupSelector();
+        }
+        if (selectorThreads != null) {
+            for (SelectorThread thread : selectorThreads) {
+                if (thread != null) {
+                    thread.wakeUpSelector();
+                }
+            }
         }
     }
 
@@ -247,8 +300,12 @@ public class NiuThreadSelectorServer extends NiuAbstractNonblockingServer {
         public void run() {
             try {
                 while (!stopped) {
-
+                    select();
                 }
+            } catch (Throwable t) {
+                log.error("run() exiting due to uncaught error", t);
+            } finally {
+                NiuThreadSelectorServer.this.stop();
             }
         }
         public void wakeupSelector() {
@@ -260,9 +317,53 @@ public class NiuThreadSelectorServer extends NiuAbstractNonblockingServer {
                 acceptSelector.select();
 
                 Iterator<SelectionKey> selectedKeys = acceptSelector.selectedKeys().iterator();
+                while (!stopped && selectedKeys.hasNext()) {
+                    SelectionKey key = selectedKeys.next();
+                    selectedKeys.remove();
+                    if (!key.isValid()) {
+                        continue;
+                    }
+                    if (key.isAcceptable()) {
+                        handleAccept();
+                    } else {
+                        log.warn("Unexpected state in select! " + key.interestOps());
+                    }
+                }
+            } catch (IOException e) {
+                log.warn("Got an IOException while selecting!", e);
             }
         }
 
+        private void handleAccept() {
+            final TNonblockingTransport client = doAccept();
+            if (client != null) {
+                final SelectorThread targetThread = threadChooser.nextThread();
+                if (args.acceptPolicy == Args.AcceptPolicy.FAST_ACCEPT || invoker == null) {
+                    doAddAccept(targetThread, client);
+                } else {
+                    try {
+                        invoker.submit(() -> {doAddAccept(targetThread, client);});
+                    } catch (RejectedExecutionException rx) {
+                        log.warn("ExecutorService rejected accept registration!", rx);
+                        client.close();
+                    }
+                }
+            }
+        }
+        private TNonblockingTransport doAccept() {
+            try {
+                return (TNonblockingTransport) serverTransport.accept();
+            } catch (TTransportException e) {
+                log.warn("Exception trying to accept!", e);
+                return null;
+            }
+        }
+
+        private void doAddAccept(SelectorThread thread, TNonblockingTransport client) {
+            if (!thread.addAcceptedConnection(client)) {
+                client.close();
+            }
+        }
     }
 
     protected class SelectorThread extends AbstractSelectThread {
@@ -385,7 +486,9 @@ public class NiuThreadSelectorServer extends NiuAbstractNonblockingServer {
             }
             return nextThreadIterator.next();
         }
+    }
 
-
+    protected static ExecutorService createDefaultExecutor(Args options) {
+        return (options.workerThreads > 0) ? Executors.newFixedThreadPool(options.workerThreads) : null;
     }
 }

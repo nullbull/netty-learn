@@ -6,6 +6,8 @@ import com.niu.netty.rpc.server.NiuDefaultThreadFactory;
 import com.niu.netty.rpc.server.config.AbstractNiuServerPublisher;
 import com.niu.netty.rpc.utils.NiuThreadSelectorWorkerExecutorUtil;
 import io.netty.bootstrap.ServerBootstrap;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelOption;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.epoll.Epoll;
 import io.netty.channel.epoll.EpollEventLoopGroup;
@@ -51,9 +53,51 @@ public class NettyServer implements INiuServer {
             b.group(bossGroup, workGroup).channel(workGroup instanceof EpollEventLoopGroup ? EpollServerSocketChannel.class : NioServerSocketChannel.class)
                     .handler(new LoggingHandler(LogLevel.INFO))
                     .childHandler(new NettyServerInitiator(serverPublisher, executorService))
+                    .option(ChannelOption.SO_BACKLOG, 1024)
+                    .option(ChannelOption.SO_REUSEADDR, true)
+                    .option(ChannelOption.SO_KEEPALIVE, true);
+            Channel ch = b.bind(serverPublisher.port).sync().channel();
+            Runtime.getRuntime().addShutdownHook(new Thread() {
+                @Override
+                public void run() {
+                    log.info("shutdown by runtime");
+                    log.info("wait for service over 3000ms");
+                    try {
+                        Thread.sleep(3000);
+                    } catch (Exception e) {}
+                    if (executorService != null) {
+                        executorService.shutdown();
+                    }
+                    if (bossGroup != null) {
+                        bossGroup.shutdownGracefully();
+                    }
+                    if (workGroup != null) {
+                        workGroup.shutdownGracefully();
+                    }
+            }});
+        } catch (Exception e) {
+            log.error("NettyServer start faid !", e);
+            if (bossGroup != null) { bossGroup.shutdownGracefully(); }
+            if (workGroup != null) { workGroup.shutdownGracefully(); }
         }
+        log.info("netty server init success server={}", serverPublisher);
+
     }
 
     @Override
-    public void stop() { }
+    public void stop() {
+        log.info("shutdown by stop");
+        log.info("wait for service over 3000ms");
+        try {
+            Thread.sleep(3000);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        if (executorService != null ){
+            executorService.shutdown();
+        }
+        if (bossGroup != null) { bossGroup.shutdownGracefully(); }
+        if (workGroup != null) { workGroup.shutdownGracefully(); }
+        log.info("netty server stop success server={}", serverPublisher);
+    }
 }

@@ -21,6 +21,11 @@ public class NettyServerInitiator extends ChannelInitializer<SocketChannel> {
 
     private AbstractNiuServerPublisher serverPublisher;
 
+    public NettyServerInitiator(AbstractNiuServerPublisher serverPublisher, ExecutorService executorService) {
+        this.serverPublisher = serverPublisher;
+        this.executorService = executorService;
+    }
+
     @Override
     protected void initChannel(SocketChannel socketChannel) throws Exception {
         socketChannel.pipeline().addLast("decoder", new NiuDecoder());
