@@ -18,7 +18,7 @@ public class HeartbeatServiceImpl implements HeartbeatService.Iface {
 
 
     @Override
-    public com.niu.netty.rpc.heartbeat.request.HeartBeat getHeartBeat(com.niu.netty.rpc.heartbeat.request.HeartBeat heartBeat) throws TException {
+    public HeartBeat getHeartBeat(HeartBeat heartBeat) throws TException {
         log.info( "HeartBeat info :{}" ,heartBeat );
         HeartBeat heartBeatRespone = new HeartBeat();
         heartBeatRespone.setIp ( IPUtil.getIPV4 () );

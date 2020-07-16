@@ -19,7 +19,6 @@ import java.util.*;
 /**
  * Copyright (C) 2018
  * All rights reserved
- * User: yulong.zhang
  * Date:2018年09月18日17:44:58
  */
 public class HeartbeatService {
