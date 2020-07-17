@@ -168,7 +168,7 @@ public class NiuClientProxy implements FactoryBean<Object>, ApplicationContextAw
     }
 
     @Override
-    public void afterPropertiesSet() throws Exception {
+    public void afterPropertiesSet() {
         if (null == serviceInterface) {
             throw new IllegalArgumentException("serviceInterface can't be null");
         }

@@ -3,8 +3,11 @@ package com.niu.netty.rpc.parser;
 import com.niu.netty.rpc.annotation.NiuClient;
 import com.niu.netty.rpc.annotation.NiuServer;
 import com.niu.netty.rpc.client.NiuClientProxy;
+import com.niu.netty.rpc.client.cluster.ILoadBalancer;
 import com.niu.netty.rpc.server.NiuServerPublisher;
 import com.niu.netty.rpc.utils.NiuAopUtil;
+import lombok.Data;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.aop.support.AopUtils;
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.BeanFactory;
@@ -17,7 +20,6 @@ import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
 import org.springframework.beans.factory.support.BeanDefinitionRegistry;
 import org.springframework.core.Ordered;
 import org.springframework.util.ClassUtils;
-import org.springframework.util.StringUtils;
 
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
@@ -26,6 +28,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
+@Data
 public class NiuAnnotationBean implements DisposableBean, BeanFactoryPostProcessor, BeanPostProcessor, BeanFactoryAware, Ordered {
     public static final String COMMA_SPLIT_PATTERN = "\\s*[,]+\\s*";
 
@@ -93,15 +96,21 @@ public class NiuAnnotationBean implements DisposableBean, BeanFactoryPostProcess
         for (Method method : methods) {
             String name = method.getName();
             int modifiers = method.getModifiers();
-            if (name.length() > 3 && name.startsWith("set") && method.getParameterTypes().length == 1 && Modifier.isProtected(modifiers)) && !Modifier.isStatic(modifiers)) {
+            if (name.length() > 3 && name.startsWith("set") && method.getParameterTypes().length == 1 && Modifier.isProtected(modifiers) && !Modifier.isStatic(modifiers)) {
                 try {
                     NiuClient niuClient = method.getAnnotation(NiuClient.class);
                     if (niuClient != null) {
-                        Object value =
+                        Object value = getClientInvoke(niuClient, method.getParameterTypes()[0]);
+                        if (value != null) {
+                            method.invoke(bean, new Object[]{value});
+                        }
                     }
+                } catch (Exception e) {
+                    throw new BeanInitializationException("Failed to init remote service reference at method " + name + " in class " + bean.getClass().getName(), e);
                 }
             }
         }
+        return bean;
     }
 
     private Object getClientInvoke(NiuClient niuClient, Class<?> beanClass) {
@@ -131,6 +140,75 @@ public class NiuAnnotationBean implements DisposableBean, BeanFactoryPostProcess
                 return niuClientProxyMap.get(key).getObject();
             }
         }
+
+        if (StringUtils.isNoneBlank(niuClient.genericService())) {
+            niuClientProxy.setGeneric(true);
+            niuClientProxy.setServiceInterface(niuClient.genericService());
+        } else {
+            niuClientProxy.setGeneric(false);
+            niuClientProxy.setServiceInterface(beanClass.getDeclaringClass().getName());
+        }
+
+        if (StringUtils.isNotEmpty(niuClient.zkPath())) {
+            niuClientProxy.setZkPath(niuClient.zkPath());
+        }
+
+        if (StringUtils.isNotEmpty(niuClient.serverIpPorts())) {
+            niuClientProxy.setServerIPPorts(niuClient.serverIpPorts());
+        }
+
+        niuClientProxy.setConnectionTimeout(niuClient.connectionTimeout());
+
+        niuClientProxy.setReadTimeout(niuClient.readTimeout());
+
+        if (StringUtils.isNotEmpty(niuClient.localMockServiceImple())) {
+            niuClientProxy.setLocalMockServiceImpl(niuClient.localMockServiceImple());
+        }
+
+        niuClientProxy.setRetryRequest(niuClient.retryRequest());
+        niuClientProxy.setRetryTimes(niuClient.retryTimes());
+        niuClientProxy.setMaxTotal(niuClient.maxTotal());
+        niuClientProxy.setMaxIdle(niuClient.maxIdle());
+        niuClientProxy.setMinIdle(niuClient.minIdle());
+        niuClientProxy.setLifo(niuClient.lifo());
+        niuClientProxy.setFairness(niuClient.fairness());
+        niuClientProxy.setMaxWaitMillis(niuClient.maxWaitMillis());
+        niuClientProxy.setTimeBetweenEvictionRunsMillis(niuClient.timeBetweenEvictionRunsMillis());
+        niuClientProxy.setMinEvictableIdleTImeMillis(niuClient.minEvictableIdleTimeMillis());
+        niuClientProxy.setSoftMinEvictableIdleTimeMillis(niuClient.softMinEvictableIdleTimeMillis());
+        niuClientProxy.setNumTestsPerEvictionRun(niuClient.numTestsPerEvictionRun());
+        niuClientProxy.setTestOnCreate(niuClient.testOnCreate());
+        niuClientProxy.setTestOnBorrow(niuClient.testOnBorrow());
+        niuClientProxy.setTestOnReturn(niuClient.testOnReturn());
+        niuClientProxy.setTestWhileIdle(niuClient.testWhileIdle());
+
+        String iLoadBalancer = niuClient.iLoadBalancer();
+        if (StringUtils.isNotEmpty(iLoadBalancer)) {
+            Object o = beanFactory.getAliases(iLoadBalancer);
+            niuClientProxy.setLoadBalancer((ILoadBalancer) o);
+        }
+
+        niuClientProxy.setEnv(niuClient.env());
+        niuClientProxy.setRemoveAbandonedOnBorrow(niuClient.removeAbandonedOnBorrow());
+        niuClientProxy.setRemoveAbandonedOnMaintenance(niuClient.removeAbandonedOnMaintenance());
+        niuClientProxy.setRemoveAbandonedTimeout(niuClient.removeAbandonedTimeout());
+        niuClientProxy.setMaxLength(niuClient.maxLength_());
+
+        if (StringUtils.isNotEmpty(niuClient.privateKey()) && StringUtils.isNotEmpty(niuClient.publicKey())) {
+            niuClientProxy.setPrivateKey(niuClient.privateKey());
+            niuClientProxy.setPublicKey(niuClient.publicKey());
+        }
+
+        niuClientProxy.afterPropertiesSet();
+
+        if (StringUtils.isEmpty(niuClient.genericService())) {
+            niuClientProxyMap.put(interfaceName, niuClientProxy);
+        } else {
+            String key = "generic-".concat(async ? "async-" : "sync-").concat(niuClient.genericService());
+            niuClientProxyMap.put(key, niuClientProxy);
+        }
+
+        return niuClientProxy.getObject();
 
     }
 
@@ -224,7 +302,11 @@ public class NiuAnnotationBean implements DisposableBean, BeanFactoryPostProcess
         return false;
     }
 
-
+    public void setAnnotationPackage(String annotationPackage) {
+        this.annotationPackage = annotationPackage;
+        this.annotationPackages = (annotationPackage == null || annotationPackage.length() == 0) ? null
+                : annotationPackage.split(COMMA_SPLIT_PATTERN);
+    }
 
     @Override
     public int getOrder() {

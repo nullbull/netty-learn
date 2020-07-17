@@ -17,8 +17,8 @@ import org.springframework.context.ApplicationContextAware;
  */
 @Slf4j
 public class NiuServerPublisher extends AbstractNiuServerPublisher implements FactoryBean<Object>, ApplicationContextAware, InitializingBean {
-    private static final String NETTY = "com.niu.netty.rpc/netty";
-    private static final String THRIFT = "com.niu.netty.rpc/thrift";
+    private static final String NETTY = "netty";
+    private static final String THRIFT = "thrift";
 
     @Override
     public Object getObject() throws Exception {
