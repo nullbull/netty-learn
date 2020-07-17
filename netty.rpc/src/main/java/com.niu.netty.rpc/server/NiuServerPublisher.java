@@ -35,7 +35,7 @@ public class NiuServerPublisher extends AbstractNiuServerPublisher implements Fa
     }
 
     @Override
-    public void afterPropertiesSet() throws Exception {
+    public void afterPropertiesSet()  {
         this.checkParam();
         if (NETTY.endsWith(this.serverType.toLowerCase().trim())) {
             niuServer = new NettyServer(this);

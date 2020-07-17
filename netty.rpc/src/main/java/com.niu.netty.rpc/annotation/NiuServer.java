@@ -22,7 +22,7 @@ public @interface NiuServer {
 
     int workThreadCount() default 0;
 
-    int koalasThreadCount() default 0;
+    int niuThreadCount() default 0;
 
     int maxLength() default Integer.MAX_VALUE;
 

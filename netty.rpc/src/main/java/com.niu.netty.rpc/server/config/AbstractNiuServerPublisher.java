@@ -106,9 +106,9 @@ public class AbstractNiuServerPublisher {
                 .orElseThrow(() -> new IllegalArgumentException("serviceInterface must contain Sub Interface of Iface"));
     }
 
-    protected void checkParam() throws IllegalAccessException {
+    protected void checkParam(){
         if (null == serviceImpl) {
-            throw new IllegalAccessException("this serviceImpl can't be null");
+            throw new IllegalArgumentException("this serviceImpl can't be null");
         }
         if(null == serviceInterface){
             throw new IllegalArgumentException ( "the serviceInterface can't be null" );

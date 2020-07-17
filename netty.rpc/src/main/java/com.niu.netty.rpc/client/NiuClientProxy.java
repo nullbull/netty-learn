@@ -149,8 +149,10 @@ public class NiuClientProxy implements FactoryBean<Object>, ApplicationContextAw
     private Class<?> genericAsyncIface;
 
     private Class<?> asyncIface;
+
+
     @Override
-    public Object getObject() throws Exception {
+    public Object getObject() {
         if (null == getNiuServerProxy()) {
             throw new RuntimeException("the Proxy can't be null");
         }
